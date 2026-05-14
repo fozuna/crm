@@ -105,9 +105,34 @@ set_exception_handler(static function (Throwable $e): void {
     $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
     $userId = (string) Session::get('user_id', '');
     $line = "[$when] [$id] [$ip] [$userId] [$uri]\n" . (string) $e . "\n\n";
-    @file_put_contents($logDir . '/app.log', $line, FILE_APPEND);
+    $wrote = false;
+    if (is_dir($logDir)) {
+        $wrote = @file_put_contents($logDir . '/app.log', $line, FILE_APPEND) !== false;
+    }
+    if (!$wrote) {
+        @error_log($line);
+    }
     if ($debug) {
         echo '<pre style="white-space: pre-wrap;">' . htmlspecialchars((string) $e) . '</pre>';
+        return;
+    }
+
+    $hint = null;
+    if ($e instanceof \PDOException || $e->getPrevious() instanceof \PDOException) {
+        $m = (string) ($e instanceof \PDOException ? $e->getMessage() : (string) $e->getPrevious()?->getMessage());
+        if (stripos($m, 'SQLSTATE[42S02]') !== false || stripos($m, 'Base table or view not found') !== false) {
+            $hint = 'Banco não inicializado ou estrutura incompleta. Importe o database/schema.sql e execute o upgrade.';
+        } elseif (stripos($m, 'SQLSTATE[HY000] [1045]') !== false || stripos($m, 'Access denied') !== false) {
+            $hint = 'Falha de autenticação no banco. Verifique DB_USER/DB_PASS e permissões.';
+        } elseif (stripos($m, 'SQLSTATE[HY000] [2002]') !== false || stripos($m, 'Connection refused') !== false) {
+            $hint = 'Falha de conexão com o banco. Verifique DB_HOST/porta e liberação no firewall.';
+        } elseif (stripos($m, 'Unknown database') !== false || stripos($m, 'SQLSTATE[HY000] [1049]') !== false) {
+            $hint = 'Banco inexistente. Verifique DB_NAME e se o banco foi criado.';
+        }
+    }
+
+    if (is_string($hint) && $hint !== '') {
+        echo htmlspecialchars($hint) . ' Ref: ' . htmlspecialchars($id);
         return;
     }
 

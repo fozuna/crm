@@ -32,10 +32,9 @@ final class DB
                 PDO::ATTR_EMULATE_PREPARES => false,
             ]);
         } catch (PDOException $e) {
-            throw new \RuntimeException('Falha ao conectar no banco.');
+            throw new \RuntimeException('Falha ao conectar no banco.', 0, $e);
         }
 
         return self::$pdo;
     }
 }
-
