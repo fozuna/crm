@@ -2,7 +2,7 @@
 
 ## Estrutura
 
-Este projeto foi preparado para hospedagem compartilhada com PHP puro, sem Composer, sem instalador obrigatório e sem comandos de shell no servidor.
+Este projeto foi preparado para hospedagem compartilhada com PHP puro, sem Composer, sem instalador obrigatorio e sem comandos de shell no servidor.
 
 Arquivos web:
 
@@ -18,7 +18,7 @@ Diretorios internos protegidos por `.htaccess`:
 - `docs/`
 - `resources/`
 - `storage/`
-- `tools/`
+- `tools/` (somente worker interno de manutencao)
 
 ## Publicacao
 
@@ -51,6 +51,7 @@ Diretorios internos protegidos por `.htaccess`:
 - A aplicacao cria automaticamente diretorios de runtime em `storage/`.
 - O arquivo `.env` e opcional. Em producao, `config/config.php` ja e suficiente.
 - O instalador permanece disponivel apenas como contingencia, mas o fluxo normal de deploy nao depende dele.
+- Scripts de diagnostico/teste nao acompanham o pacote operacional de producao.
 
 ## Validacao rapida
 
