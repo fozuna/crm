@@ -1,0 +1,18 @@
+Options -Indexes
+
+<Files ".env">
+  Order allow,deny
+  Deny from all
+</Files>
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  RewriteRule ^(app|config|database|docs|resources|storage|tools)/ - [F,L]
+
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  RewriteRule ^ index.php [QSA,L]
+</IfModule>

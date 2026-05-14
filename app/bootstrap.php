@@ -1,0 +1,115 @@
+<?php
+declare(strict_types=1);
+
+use App\Core\Config;
+use App\Core\Session;
+
+spl_autoload_register(static function (string $class): void {
+    $prefix = 'App\\';
+    if (!str_starts_with($class, $prefix)) {
+        return;
+    }
+
+    $relative = substr($class, strlen($prefix));
+    $file = __DIR__ . '/' . str_replace('\\', '/', $relative) . '.php';
+    if (is_file($file)) {
+        require $file;
+    }
+});
+
+$config = Config::load(__DIR__ . '/../.env', __DIR__ . '/../config/config.php');
+Config::setAll($config);
+
+if (function_exists('opcache_invalidate')) {
+    $targets = [
+        __DIR__ . '/Controllers/ReportController.php',
+        __DIR__ . '/Repositories/FinanceRevenueRepository.php',
+        __DIR__ . '/Core/View.php',
+        __DIR__ . '/../resources/views/reports/finance.php',
+    ];
+    foreach ($targets as $t) {
+        if (is_file($t)) {
+            @opcache_invalidate($t, true);
+        }
+    }
+}
+
+date_default_timezone_set(Config::get('APP_TIMEZONE', 'UTC'));
+
+foreach ([
+    __DIR__ . '/../storage/cache',
+    __DIR__ . '/../storage/jobs',
+    __DIR__ . '/../storage/logs',
+    __DIR__ . '/../storage/pdfs/contracts',
+    __DIR__ . '/../storage/pdfs/proposals',
+    __DIR__ . '/../storage/sessions',
+    __DIR__ . '/../storage/uploads/clients',
+    __DIR__ . '/../storage/uploads/company_profile',
+    __DIR__ . '/../storage/uploads/company_profile/branding',
+] as $dir) {
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0755, true);
+    }
+}
+
+Session::start();
+
+if (!headers_sent()) {
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+}
+
+$logDir = __DIR__ . '/../storage/logs';
+
+$logException = static function (Throwable $e, string $id) use ($logDir): void {
+    $when = date('Y-m-d H:i:s');
+    $uri = (string) ($_SERVER['REQUEST_METHOD'] ?? '') . ' ' . (string) ($_SERVER['REQUEST_URI'] ?? '');
+    $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+    $userId = (string) Session::get('user_id', '');
+    $line = "[$when] [$id] [$ip] [$userId] [$uri]\n" . (string) $e . "\n\n";
+    @file_put_contents($logDir . '/app.log', $line, FILE_APPEND);
+};
+
+set_error_handler(static function (int $severity, string $message, string $file, int $line): bool {
+    if (!(error_reporting() & $severity)) {
+        return false;
+    }
+    throw new ErrorException($message, 0, $severity, $file, $line);
+});
+
+register_shutdown_function(static function () use ($logException): void {
+    $err = error_get_last();
+    if (!is_array($err) || !isset($err['type'], $err['message'], $err['file'], $err['line'])) {
+        return;
+    }
+    $fatal = [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR];
+    if (!in_array((int) $err['type'], $fatal, true)) {
+        return;
+    }
+    $id = bin2hex(random_bytes(6));
+    $e = new ErrorException((string) $err['message'], 0, (int) $err['type'], (string) $err['file'], (int) $err['line']);
+    $logException($e, $id);
+});
+
+set_exception_handler(static function (Throwable $e): void {
+    http_response_code(500);
+    $debug = (bool) Config::get('APP_DEBUG', false);
+    $id = bin2hex(random_bytes(6));
+    $logDir = __DIR__ . '/../storage/logs';
+    if (!is_dir($logDir)) {
+        @mkdir($logDir, 0755, true);
+    }
+    $when = date('Y-m-d H:i:s');
+    $uri = (string) ($_SERVER['REQUEST_METHOD'] ?? '') . ' ' . (string) ($_SERVER['REQUEST_URI'] ?? '');
+    $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+    $userId = (string) Session::get('user_id', '');
+    $line = "[$when] [$id] [$ip] [$userId] [$uri]\n" . (string) $e . "\n\n";
+    @file_put_contents($logDir . '/app.log', $line, FILE_APPEND);
+    if ($debug) {
+        echo '<pre style="white-space: pre-wrap;">' . htmlspecialchars((string) $e) . '</pre>';
+        return;
+    }
+
+    echo 'Erro interno. Ref: ' . htmlspecialchars($id);
+});
