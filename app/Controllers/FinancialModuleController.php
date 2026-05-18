@@ -21,6 +21,8 @@ use App\Repositories\ProjectRepository;
 use App\Services\CompanyContext;
 use App\Services\CompanyProfileService;
 use App\Services\FinancialReceiptPdfGenerator;
+use App\Services\FinancialReceivablePdfGenerator;
+use App\Services\FinancialReceivablePdfValidator;
 use App\Services\FinancialReceivableService;
 use App\Services\Money;
 use App\Services\ProfessionalPdf;
@@ -92,8 +94,15 @@ final class FinancialModuleController
         $companyId = CompanyContext::currentCompanyId();
         $actorId = (int) Session::get('user_id', 0);
         try {
-            (new FinancialReceivableService())->create($this->payloadFromRequest($request, $companyId, $actorId), $actorId, $this->ip());
-            Response::redirect($request->basePath() . '/financeiro/recebiveis?ok=' . rawurlencode('Conta(s) a receber criada(s) com sucesso.'));
+            $created = (new FinancialReceivableService())->create($this->payloadFromRequest($request, $companyId, $actorId), $actorId, $this->ip());
+            $first = is_array($created[0] ?? null) ? $created[0] : null;
+            $firstId = (int) ($first['id'] ?? 0);
+            $count = count($created);
+            $msg = $count === 1 ? 'Conta a receber criada com sucesso.' : ('Contas a receber criadas com sucesso (' . $count . ').');
+            if ($firstId > 0) {
+                Response::redirect($request->basePath() . '/financeiro/recebiveis/' . $firstId . '?ok=' . rawurlencode($msg) . '&preview_pdf=1');
+            }
+            Response::redirect($request->basePath() . '/financeiro/recebiveis?ok=' . rawurlencode($msg));
         } catch (\Throwable $e) {
             $clientId = (int) $request->input('client_id', 0);
             $projects = $this->approvedProjects($clientId);
@@ -131,6 +140,7 @@ final class FinancialModuleController
             'audit' => (new FinancialAuditLogRepository())->listByReceivable($companyId, $id),
             'ok' => trim((string) $request->input('ok', '')),
             'error' => trim((string) $request->input('error', '')),
+            'previewPdf' => (int) $request->input('preview_pdf', 0) === 1,
             'canManage' => $this->canManage(),
         ]);
     }
@@ -425,34 +435,32 @@ final class FinancialModuleController
     {
         $companyId = CompanyContext::currentCompanyId();
         $id = (int) ($params['id'] ?? 0);
+        $inline = (int) $request->input('inline', 0) === 1;
         $receivable = (new FinancialReceivableRepository())->find($companyId, $id);
         if ($receivable === null) {
             http_response_code(404);
             echo 'Conta a receber não encontrada.';
             return;
         }
-        $pdf = new ProfessionalPdf();
-        $pdf->addPage();
-        $pdf->setFont('F2', 12);
-        $pdf->text(40, 800, 'Conta a Receber #' . $id);
-        $pdf->setFont('F1', 11);
-        $lines = [
-            'Titulo: ' . (string) ($receivable['title'] ?? ''),
-            'Cliente: ' . (string) (($receivable['client_company'] ?? '') !== '' ? $receivable['client_company'] : ($receivable['client_name'] ?? '')),
-            'Projeto: ' . (string) ($receivable['project_title'] ?? '—'),
-            'Status: ' . (string) ($receivable['status'] ?? ''),
-            'Vencimento: ' . (string) ($receivable['due_date'] ?? ''),
-            'Valor original: R$ ' . number_format((float) ($receivable['original_amount'] ?? 0), 2, ',', '.'),
-            'Saldo: R$ ' . number_format((float) ($receivable['remaining_amount'] ?? 0), 2, ',', '.'),
-        ];
-        $y = 780;
-        foreach ($lines as $line) {
-            $pdf->text(40, $y, $line);
-            $y -= 16;
+
+        $errors = (new FinancialReceivablePdfValidator())->validate($receivable);
+        if ($errors !== []) {
+            $msg = implode(' ', $errors);
+            if ($inline) {
+                http_response_code(422);
+                echo $msg;
+                return;
+            }
+            Response::redirect($request->basePath() . '/financeiro/recebiveis/' . $id . '?error=' . rawurlencode($msg));
         }
+
+        $branding = (new CompanyProfileService())->branding();
+        $bytes = (new FinancialReceivablePdfGenerator())->build($branding, $receivable);
+
         header('Content-Type: application/pdf');
-        header('Content-Disposition: attachment; filename="receivable-' . $id . '.pdf"');
-        echo $pdf->output();
+        header('Content-Disposition: ' . ($inline ? 'inline' : 'attachment') . '; filename="conta-a-receber-' . $id . '.pdf"');
+        header('Content-Length: ' . strlen($bytes));
+        echo $bytes;
         exit;
     }
 

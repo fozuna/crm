@@ -7,6 +7,7 @@ $receivable = is_array($receivable ?? null) ? $receivable : [];
 $receipts = is_array($receipts ?? null) ? $receipts : [];
 $latestReceipt = is_array($latestReceipt ?? null) ? $latestReceipt : [];
 $audit = is_array($audit ?? null) ? $audit : [];
+$previewPdf = (bool) ($previewPdf ?? false);
 $status = (string) ($receivable['status'] ?? 'pending');
 $originalAmount = (float) ($receivable['original_amount'] ?? 0);
 $receivedAmount = (float) ($receivable['received_amount'] ?? 0);
@@ -24,6 +25,7 @@ $daysOverdue = ($remainingAmount > 0 && $dueDate !== '' && $dueDate < $today) ? 
   <div class="flex flex-wrap gap-2">
     <a class="tr-btn" href="<?= View::e($base . '/financeiro/recebiveis') ?>">Voltar</a>
     <a class="tr-btn" href="<?= View::e($base . '/financeiro/recebiveis/' . (int) $receivable['id'] . '/imprimir') ?>" target="_blank" rel="noopener">Imprimir</a>
+    <button class="tr-btn" type="button" id="btnPreviewPdf">Preview PDF</button>
     <a class="tr-btn" href="<?= View::e($base . '/financeiro/recebiveis/' . (int) $receivable['id'] . '/pdf') ?>">PDF</a>
     <?php if ((int) ($latestReceipt['id'] ?? 0) > 0): ?>
       <a class="tr-btn" href="<?= View::e($base . '/financeiro/recebiveis/' . (int) $receivable['id'] . '/recibos/' . (int) $latestReceipt['id'] . '/preview') ?>" target="_blank" rel="noopener">Preview Recibo</a>
@@ -44,6 +46,19 @@ $daysOverdue = ($remainingAmount > 0 && $dueDate !== '' && $dueDate < $today) ? 
 <?php if (trim((string) ($error ?? '')) !== ''): ?>
   <div class="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><?= View::e((string) $error) ?></div>
 <?php endif; ?>
+
+<div id="pdfPreviewWrap" class="tr-card p-4 mt-4 hidden">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="font-semibold">Preview do PDF</div>
+    <div class="flex flex-wrap gap-2">
+      <button class="tr-btn" type="button" id="btnPreviewReload">Atualizar</button>
+      <button class="tr-btn" type="button" id="btnPreviewClose">Fechar</button>
+    </div>
+  </div>
+  <div class="mt-3">
+    <iframe id="pdfPreviewFrame" class="w-full rounded-lg border border-slate-200 bg-white" style="height: 70vh;" src="<?= View::e($base . '/financeiro/recebiveis/' . (int) $receivable['id'] . '/pdf?inline=1') ?>"></iframe>
+  </div>
+</div>
 
 <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mt-6">
   <div class="tr-card p-5">
@@ -299,6 +314,52 @@ $daysOverdue = ($remainingAmount > 0 && $dueDate !== '' && $dueDate < $today) ? 
 
 <script>
   (function () {
+    const previewBtn = document.getElementById('btnPreviewPdf');
+    const previewWrap = document.getElementById('pdfPreviewWrap');
+    const previewFrame = document.getElementById('pdfPreviewFrame');
+    const previewReload = document.getElementById('btnPreviewReload');
+    const previewClose = document.getElementById('btnPreviewClose');
+
+    function showPreview() {
+      if (!previewWrap || !previewFrame) return;
+      previewWrap.classList.remove('hidden');
+      previewFrame.src = previewFrame.src.replace(/([?&])ts=\d+/, '$1') + (previewFrame.src.includes('?') ? '&' : '?') + 'ts=' + Date.now();
+      if (window.trIconify) window.trIconify(previewWrap);
+      previewFrame.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+
+    function hidePreview() {
+      if (!previewWrap) return;
+      previewWrap.classList.add('hidden');
+    }
+
+    if (previewBtn) {
+      previewBtn.addEventListener('click', function () {
+        if (!previewWrap) return;
+        if (previewWrap.classList.contains('hidden')) {
+          showPreview();
+          return;
+        }
+        hidePreview();
+      });
+    }
+
+    if (previewReload) {
+      previewReload.addEventListener('click', function () {
+        showPreview();
+      });
+    }
+
+    if (previewClose) {
+      previewClose.addEventListener('click', function () {
+        hidePreview();
+      });
+    }
+
+    if (<?= $previewPdf ? 'true' : 'false' ?>) {
+      showPreview();
+    }
+
     const modal = document.getElementById('confirmModal');
     const message = document.getElementById('confirmModalMessage');
     const cancelBtn = document.getElementById('confirmModalCancel');

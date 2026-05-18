@@ -58,11 +58,17 @@ final class FinancialReceivableRepository
         $sql = "SELECT far.*,
                        c.name AS client_name,
                        c.company AS client_company,
+                       c.email AS client_email,
+                       c.phone AS client_phone,
+                       c.contact_person AS client_contact_person,
                        p.title AS project_title,
                        fc.name AS category_name,
                        fcc.name AS cost_center_name,
                        fba.bank_name,
                        fba.account_name,
+                       fba.branch_number,
+                       fba.account_number,
+                       fba.pix_key,
                        ct.rendered_body AS contract_body
                 FROM financial_accounts_receivable far
                 INNER JOIN clients c ON c.id = far.client_id
