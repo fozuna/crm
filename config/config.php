@@ -14,4 +14,11 @@ return [
     'DB_USER' => 'usuario_do_banco',
     'DB_PASS' => 'senha_do_banco',
     'DB_CHARSET' => 'utf8mb4',
+    'DB_RESET_ENABLED' => false,
+    'DB_RESET_TARGET' => 'production',
+    'DB_RESET_ALLOWED_HOST' => '',
+    'DB_RESET_ALLOWED_DB' => '',
+    'DB_RESET_CONFIRM_PHRASE' => 'RESETAR-BANCO-PRODUCAO',
+    'DB_RESET_PRESERVE_TABLES' => '',
+    'DB_RESET_SEED_MINIMUM' => true,
 ];

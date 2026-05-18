@@ -65,6 +65,10 @@ return static function (Router $router, array $mw): void {
     $router->post('/maintenance/db-upgrade/start', [new MaintenanceController(), 'startDbUpgrade'], [$auth, $admin, $csrf]);
     $router->get('/maintenance/db-upgrade/status/{jobId}', [new MaintenanceController(), 'dbUpgradeStatus'], [$auth, $admin]);
 
+    $router->get('/maintenance/db-reset/plan', [new MaintenanceController(), 'dbResetPlan'], [$auth, $admin]);
+    $router->post('/maintenance/db-reset/start', [new MaintenanceController(), 'startDbReset'], [$auth, $admin, $csrf]);
+    $router->get('/maintenance/db-reset/status/{jobId}', [new MaintenanceController(), 'dbResetStatus'], [$auth, $admin]);
+
     $router->get('/empresa', [new CompanyProfileController(), 'edit'], [$auth, $admin]);
     $router->post('/empresa', [new CompanyProfileController(), 'update'], [$auth, $admin, $csrf]);
     $router->get('/empresa/auditoria', [new CompanyProfileController(), 'audit'], [$auth, $admin]);
