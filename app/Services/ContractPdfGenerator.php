@@ -5,34 +5,51 @@ namespace App\Services;
 
 final class ContractPdfGenerator
 {
+    private string $contactLine = '+5567993256260 • comercial@traxter.com.br';
     private int $pageW = 595;
     private int $pageH = 842;
     private int $margin = 56;
+    private int $yTop = 750;
+    private array $branding = [];
 
     public function build(array $branding, array $contract, string $body, string $footer): string
     {
+        $this->branding = $branding;
         $pdf = new ProfessionalPdf();
         $pdf->addPage();
 
-        $primary = $this->hexToRgb((string) ($branding['primary_color'] ?? '#293241'));
-        $accent = $this->hexToRgb((string) ($branding['accent_color'] ?? '#ee6c4d'));
-        $company = trim((string) ($branding['company_name'] ?? 'TRAXTER'));
         $contractTitle = trim((string) ($contract['title'] ?? 'Contrato de Prestacao de Servicos'));
+        $company = trim((string) ($branding['company_name'] ?? 'TRAXTER'));
 
-        $pdf->setFillColor($primary[0], $primary[1], $primary[2]);
-        $pdf->rect(0, 786, $this->pageW, 56, 'F');
-        $pdf->setFillColor($accent[0], $accent[1], $accent[2]);
-        $pdf->rect(0, 780, $this->pageW, 6, 'F');
+        $this->yTop = PdfStandardTheme::renderHeaderMinimal(
+            $pdf,
+            $this->branding,
+            $this->pageW,
+            $this->pageH,
+            $this->margin,
+            56,
+            6,
+            36,
+            200,
+            32
+        );
 
-        $pdf->setFillColor(255, 255, 255);
         $pdf->setFont('F2', 16);
-        $pdf->text($this->margin, 812, $contractTitle);
+        $pdf->setFillColor(17, 24, 39);
+        $y = $this->yTop;
+        $pdf->text($this->margin, $y, $contractTitle);
         $pdf->setFont('F1', 10);
-        $pdf->text($this->margin, 794, $company !== '' ? $company : 'TRAXTER');
-        $pdf->text(380, 812, 'Contrato ' . (string) ($contract['contract_number'] ?? ''));
-        $pdf->text(380, 794, 'Versao ' . (int) ($contract['current_version'] ?? 1));
+        $y -= 18;
+        $pdf->setFillColor(71, 85, 105);
+        $meta = [];
+        $meta[] = 'Contrato ' . (string) ($contract['contract_number'] ?? '');
+        $meta[] = 'Versao ' . (int) ($contract['current_version'] ?? 1);
+        if ($company !== '') {
+            $meta[] = $company;
+        }
+        $pdf->text($this->margin, $y, implode(' • ', array_filter($meta, static fn ($v) => trim((string) $v) !== '')));
 
-        $y = 750;
+        $y -= 28;
         $y = $this->paragraph($pdf, $y, $body, 90, 12);
         if (trim($footer) !== '') {
             $y -= 12;
@@ -43,11 +60,7 @@ final class ContractPdfGenerator
             $y = $this->paragraph($pdf, $y, $footer, 90, 12);
         }
 
-        $pdf->setStrokeColor(203, 213, 225);
-        $pdf->line($this->margin, 92, $this->pageW - $this->margin, 92);
-        $pdf->setFont('F1', 9);
-        $pdf->setFillColor(71, 85, 105);
-        $pdf->text($this->margin, 76, 'Gerado automaticamente a partir da proposta aprovada vinculada ao CRM TRAXTER.');
+        PdfStandardTheme::appendCenteredFooterPaginationAndContact($pdf, $this->pageW, $this->contactLine, 20, [71, 85, 105], 10);
 
         return $pdf->output();
     }
@@ -67,7 +80,20 @@ final class ContractPdfGenerator
             foreach ($lines as $line) {
                 if ($y < 110) {
                     $pdf->addPage();
-                    $y = 760;
+                    $y = PdfStandardTheme::renderHeaderMinimal(
+                        $pdf,
+                        $this->branding,
+                        $this->pageW,
+                        $this->pageH,
+                        $this->margin,
+                        56,
+                        6,
+                        36,
+                        200,
+                        32
+                    );
+                    $pdf->setFont('F1', 10);
+                    $pdf->setFillColor(30, 41, 59);
                 }
                 $pdf->text($this->margin, $y, $line);
                 $y -= $lineHeight;

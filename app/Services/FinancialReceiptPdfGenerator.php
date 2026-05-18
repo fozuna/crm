@@ -5,6 +5,7 @@ namespace App\Services;
 
 final class FinancialReceiptPdfGenerator
 {
+    private string $contactLine = '+5567993256260 • comercial@traxter.com.br';
     private string $companyName = 'TRAXTER';
     private string $logoPath = '';
     private string $logoMime = '';
@@ -25,9 +26,11 @@ final class FinancialReceiptPdfGenerator
     private int $contentW = 499;
     private int $yTop = 778;
     private int $yBottom = 54;
+    private array $branding = [];
 
     public function build(array $branding, array $receivable, array $receipt): string
     {
+        $this->branding = $branding;
         $this->companyName = trim((string) ($branding['company_name'] ?? 'TRAXTER')) ?: 'TRAXTER';
         $this->logoPath = trim((string) ($branding['logo_path'] ?? ''));
         $this->logoMime = trim((string) ($branding['logo_mime'] ?? ''));
@@ -38,39 +41,62 @@ final class FinancialReceiptPdfGenerator
         $pdf = new ProfessionalPdf();
         $pdf->addPage();
 
-        $y = $this->renderHeader($pdf, $receivable, $receipt);
+        $y = $this->renderHeader($pdf, $branding);
+        $y = $this->renderTitleBlock($pdf, $y, $receivable, $receipt);
         $y = $this->renderClientService($pdf, $y, $receivable);
         $y = $this->renderPaymentHighlights($pdf, $y, $receipt);
         $y = $this->renderDetails($pdf, $y, $receivable, $receipt);
         $y = $this->renderStatement($pdf, $y, $receivable, $receipt);
         $this->renderFooter($pdf, $y, $receipt);
 
+        PdfStandardTheme::appendCenteredFooterPaginationAndContact($pdf, $this->pageW, $this->contactLine, 20, $this->muted, 10);
+
         $bytes = $pdf->output();
         $this->cleanupTemporaryFiles();
         return $bytes;
     }
 
-    private function renderHeader(ProfessionalPdf $pdf, array $receivable, array $receipt): int
+    private function renderHeader(ProfessionalPdf $pdf, array $branding): int
     {
+        $effectiveBranding = $branding;
+        $effectiveBranding['primary_color'] = (string) ($branding['primary_color'] ?? '#0f172a');
+        $effectiveBranding['accent_color'] = (string) ($branding['accent_color'] ?? '#0ea5a4');
+        $effectiveBranding['logo_path'] = $this->renderableLogoPath !== '' ? $this->renderableLogoPath : $this->logoPath;
+
+        return PdfStandardTheme::renderHeaderMinimal(
+            $pdf,
+            $effectiveBranding,
+            $this->pageW,
+            $this->pageH,
+            $this->contentX,
+            82,
+            6,
+            36,
+            140,
+            34
+        );
+    }
+
+    private function renderTitleBlock(ProfessionalPdf $pdf, int $y, array $receivable, array $receipt): int
+    {
+        $yTop = $y;
+        $blockH = 56;
+        $y = $yTop;
+
         $pdf->setFillColor($this->primary[0], $this->primary[1], $this->primary[2]);
-        $pdf->rect(0, 760, $this->pageW, 82, 'F');
-        $pdf->setFillColor($this->accent[0], $this->accent[1], $this->accent[2]);
-        $pdf->rect(0, 754, $this->pageW, 6, 'F');
-
-        $this->renderHeaderLogo($pdf);
-
-        $pdf->setFillColor(255, 255, 255);
-        $pdf->setFont('F2', 18);
-        $pdf->text($this->contentX, 792, 'RECIBO DE PAGAMENTO');
+        $pdf->setFont('F2', 16);
+        $pdf->text($this->contentX, $y - 18, 'RECIBO DE PAGAMENTO');
+        $pdf->setFillColor($this->muted[0], $this->muted[1], $this->muted[2]);
         $pdf->setFont('F1', 10);
-        $pdf->text($this->contentX, 774, 'Documento financeiro emitido para comprovacao formal do recebimento.');
+        $pdf->text($this->contentX, $y - 34, 'Documento financeiro emitido para comprovacao formal do recebimento.');
 
+        $pdf->setFillColor($this->body[0], $this->body[1], $this->body[2]);
         $pdf->setFont('F1', 10);
-        $pdf->text(392, 802, 'Recibo #' . (int) ($receipt['id'] ?? 0));
-        $pdf->text(392, 786, 'Conta #' . (int) ($receivable['id'] ?? 0));
-        $pdf->text(392, 770, 'Data: ' . $this->formatDate((string) ($receipt['payment_date'] ?? '')));
+        $pdf->text(392, $y - 14, 'Recibo #' . (int) ($receipt['id'] ?? 0));
+        $pdf->text(392, $y - 28, 'Conta #' . (int) ($receivable['id'] ?? 0));
+        $pdf->text(392, $y - 42, 'Data: ' . $this->formatDate((string) ($receipt['payment_date'] ?? '')));
 
-        return 724;
+        return $yTop - $blockH - 10;
     }
 
     private function renderClientService(ProfessionalPdf $pdf, int $y, array $receivable): int
@@ -182,7 +208,7 @@ final class FinancialReceiptPdfGenerator
 
         if (($y - $boxH) < $this->yBottom + 110) {
             $pdf->addPage();
-            $y = $this->renderHeader($pdf, $receivable, $receipt);
+            $y = $this->renderHeader($pdf, $this->branding);
         }
 
         $pdf->setFillColor(255, 255, 255);
@@ -229,8 +255,6 @@ final class FinancialReceiptPdfGenerator
         $pdf->text($this->contentX + 337, $footerY - 16, $this->companyName);
 
         $pdf->setFillColor($this->body[0], $this->body[1], $this->body[2]);
-        $pdf->setFont('F1', 9);
-        $pdf->text($this->contentX, 34, 'Recibo gerado em ' . date('d/m/Y H:i') . ' | Pagamento em ' . $this->formatDate((string) ($receipt['payment_date'] ?? '')));
     }
 
     private function drawKeyValues(ProfessionalPdf $pdf, int $x, int $y, array $pairs): void

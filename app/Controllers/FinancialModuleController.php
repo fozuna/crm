@@ -25,6 +25,7 @@ use App\Services\FinancialReceivablePdfGenerator;
 use App\Services\FinancialReceivablePdfValidator;
 use App\Services\FinancialReceivableService;
 use App\Services\Money;
+use App\Services\PdfStandardTheme;
 use App\Services\ProfessionalPdf;
 use App\Services\XlsxBuilder;
 
@@ -340,19 +341,33 @@ final class FinancialModuleController
         $reports = (new FinancialEnterpriseReportRepository())->reports($companyId, $this->filters($request));
         $pdf = new ProfessionalPdf();
         $pdf->addPage();
-        $pdf->setFont('F2', 12);
-        $pdf->text(40, 800, 'Relatório Financeiro Enterprise');
+        $branding = [];
+        try {
+            $branding = (new CompanyProfileService())->branding();
+        } catch (\Throwable) {
+            $branding = [];
+        }
+        $y = PdfStandardTheme::renderHeaderMinimal($pdf, $branding, 595, 842, 40, 54, 4, 28, 200, 32);
+        $pdf->setFont('F2', 14);
+        $pdf->setFillColor(26, 26, 26);
+        $pdf->text(40, $y, 'Relatório Financeiro Enterprise');
         $pdf->setFont('F1', 11);
-        $y = 780;
+        $y -= 22;
         foreach (array_slice((array) ($reports['receivables'] ?? []), 0, 30) as $row) {
             if ($y < 70) {
                 $pdf->addPage();
-                $y = 800;
+                $y = PdfStandardTheme::renderHeaderMinimal($pdf, $branding, 595, 842, 40, 54, 4, 28, 200, 32);
+                $pdf->setFillColor(26, 26, 26);
+                $pdf->setFont('F2', 12);
+                $pdf->text(40, $y, 'Relatório Financeiro Enterprise (continuação)');
+                $y -= 22;
+                $pdf->setFont('F1', 11);
             }
             $line = (string) ($row['due_date'] ?? '') . ' | ' . (string) ($row['title'] ?? '') . ' | R$ ' . number_format((float) ($row['remaining_amount'] ?? 0), 2, ',', '.');
             $pdf->text(40, $y, mb_strlen($line) > 95 ? mb_substr($line, 0, 95) . '...' : $line);
             $y -= 14;
         }
+        PdfStandardTheme::appendCenteredFooterPaginationAndContact($pdf, 595, '+5567993256260 • comercial@traxter.com.br', 20, [71, 85, 105], 10);
         $bytes = $pdf->output();
         header('Content-Type: application/pdf');
         header('Content-Disposition: attachment; filename="financial-reports.pdf"');
@@ -690,6 +705,7 @@ final class FinancialModuleController
             'logo_mime' => $logoMime,
             'logo_original_name' => $logoOriginalName,
             'logo_preview_src' => $this->inlineImageSrc($logoPath, $logoMime),
+            'company_cnpj' => (string) ($branding['company_cnpj'] ?? ''),
             'primary_color' => (string) ($branding['primary_color'] ?? '#293241'),
             'accent_color' => (string) ($branding['accent_color'] ?? '#0ea5a4'),
         ];

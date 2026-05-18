@@ -5,11 +5,14 @@ namespace App\Services;
 
 final class FinancialReceivablePdfGenerator
 {
+    private string $contactLine = '+5567993256260 • comercial@traxter.com.br';
     private string $company = 'TRAXTER';
     private string $logoPath = '';
+    private string $companyCnpj = '';
+    private string $primaryHex = '#293241';
+    private string $accentHex = '#ee6c4d';
     private array $primary = [41, 50, 65];
     private array $accent = [238, 108, 77];
-    private string $companyMeta = '';
 
     private array $textBody = [26, 26, 26];
     private array $textHeading = [17, 24, 39];
@@ -41,27 +44,11 @@ final class FinancialReceivablePdfGenerator
 
         $this->primary = $this->hexToRgb((string) ($branding['primary_color'] ?? '#293241'));
         $this->accent = $this->hexToRgb((string) ($branding['accent_color'] ?? '#ee6c4d'));
+        $this->primaryHex = (string) ($branding['primary_color'] ?? '#293241');
+        $this->accentHex = (string) ($branding['accent_color'] ?? '#ee6c4d');
         $this->company = trim((string) ($branding['company_name'] ?? '')) !== '' ? trim((string) $branding['company_name']) : 'TRAXTER';
         $this->logoPath = trim((string) ($branding['logo_path'] ?? ''));
-
-        $meta = [];
-        $cnpj = $this->formatCnpj((string) ($branding['company_cnpj'] ?? ''));
-        if ($cnpj !== '') {
-            $meta[] = 'CNPJ: ' . $cnpj;
-        }
-        $wa = trim((string) ($branding['company_whatsapp'] ?? ''));
-        if ($wa !== '') {
-            $meta[] = 'WhatsApp: ' . $wa;
-        }
-        $email = trim((string) ($branding['company_email'] ?? ''));
-        if ($email !== '') {
-            $meta[] = $email;
-        }
-        $site = trim((string) ($branding['company_website'] ?? ''));
-        if ($site !== '') {
-            $meta[] = $site;
-        }
-        $this->companyMeta = implode(' • ', $meta);
+        $this->companyCnpj = (string) ($branding['company_cnpj'] ?? '');
 
         $pdf = new ProfessionalPdf();
         $pdf->addPage();
@@ -85,36 +72,31 @@ final class FinancialReceivablePdfGenerator
         $y = $this->paymentBlock($pdf, $y, $receivable);
 
         $this->footerBlock($pdf, $y);
-        $this->addPageNumbers($pdf);
+        PdfStandardTheme::appendCenteredFooterPaginationAndContact($pdf, $this->pageW, $this->contactLine, 20, [71, 85, 105], 10);
 
         return $pdf->output();
     }
 
     private function renderHeader(ProfessionalPdf $pdf): void
     {
-        $primary = $this->primary;
-        $accent = $this->accent;
-
-        $pdf->setFillColor($primary[0], $primary[1], $primary[2]);
-        $pdf->rect(0, $this->pageH - $this->headerH, $this->pageW, $this->headerH, 'F');
-        $pdf->setFillColor($accent[0], $accent[1], $accent[2]);
-        $pdf->rect(0, $this->pageH - $this->headerH - 4, $this->pageW, 4, 'F');
-
-        $textX = $this->x0;
-
-        $pdf->setFont('F2', 12);
-        $headerText = $this->bestTextOn($primary);
-        $pdf->setFillColor($headerText[0], $headerText[1], $headerText[2]);
-        $pdf->text($textX, $this->pageH - $this->headerH + 24, $this->company);
-
-        if ($this->companyMeta !== '') {
-            $pdf->setFont('F1', 11);
-            $pdf->text($textX, $this->pageH - $this->headerH + 10, $this->companyMeta);
-        }
-
+        $this->yTop = PdfStandardTheme::renderHeaderMinimal(
+            $pdf,
+            [
+                'primary_color' => $this->primaryHex,
+                'accent_color' => $this->accentHex,
+                'logo_path' => $this->logoPath,
+                'company_cnpj' => $this->companyCnpj,
+            ],
+            $this->pageW,
+            $this->pageH,
+            $this->margin,
+            $this->headerH,
+            4,
+            (int) floor(($this->margin + 14) / 2),
+            160,
+            28
+        );
         $this->applyBodyText($pdf);
-        $gap = (int) floor(($this->margin + 14) / 2);
-        $this->yTop = $this->pageH - $this->headerH - $gap;
     }
 
     private function sectionTitle(ProfessionalPdf $pdf, int $y, string $title): int
@@ -461,13 +443,6 @@ final class FinancialReceivablePdfGenerator
         $pdf->setFont('F1', 10);
         $pdf->text($this->x0 + 36, $footerY - 16, 'Assinatura do cliente');
         $pdf->text($this->x1 - 220, $footerY - 16, $this->company);
-
-        if ($this->logoPath !== '' && is_file($this->logoPath)) {
-            $pdf->imageFromFile($this->x0, $this->yBottom + 6, 90, 20, $this->logoPath);
-        }
-
-        $pdf->setFont('F1', 9);
-        $pdf->text($this->x0, 34, 'Documento gerado em ' . date('d/m/Y H:i'));
     }
 
     private function sectionSeparator(ProfessionalPdf $pdf, int $y): int
@@ -504,21 +479,6 @@ final class FinancialReceivablePdfGenerator
     private function ensureBlock(ProfessionalPdf $pdf, int $y, int $needed): int
     {
         return $this->ensureSpace($pdf, $y, $this->yBottom + $this->footerReserve + $needed);
-    }
-
-    private function addPageNumbers(ProfessionalPdf $pdf): void
-    {
-        $ref = new \ReflectionClass($pdf);
-        $prop = $ref->getProperty('pages');
-        $prop->setAccessible(true);
-        $pages = (array) $prop->getValue($pdf);
-        $total = count($pages);
-        $rg = $this->rgOp($this->textBody);
-        foreach ($pages as $i => $ops) {
-            $ops[] = $rg . ' BT /F1 11 Tf 470 20 Td (Pagina ' . ($i + 1) . ' de ' . $total . ') Tj ET';
-            $pages[$i] = $ops;
-        }
-        $prop->setValue($pdf, $pages);
     }
 
     private function rgOp(array $rgb): string
@@ -642,5 +602,16 @@ final class FinancialReceivablePdfGenerator
             return $raw;
         }
         return date('d/m/Y', $ts);
+    }
+
+    private function rgbToHex(array $rgb): string
+    {
+        $r = (int) ($rgb[0] ?? 0);
+        $g = (int) ($rgb[1] ?? 0);
+        $b = (int) ($rgb[2] ?? 0);
+        $r = max(0, min(255, $r));
+        $g = max(0, min(255, $g));
+        $b = max(0, min(255, $b));
+        return sprintf('#%02x%02x%02x', $r, $g, $b);
     }
 }

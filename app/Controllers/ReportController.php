@@ -8,7 +8,9 @@ use App\Core\Request;
 use App\Core\View;
 use App\Repositories\FinanceReportRepository;
 use App\Repositories\FinanceRevenueRepository;
+use App\Services\CompanyProfileService;
 use App\Services\InstallmentCharges;
+use App\Services\PdfStandardTheme;
 use App\Services\ProfessionalPdf;
 use App\Services\FinanceTrace;
 use App\Services\XlsxBuilder;
@@ -115,22 +117,32 @@ final class ReportController
         $rows = is_array($res['rows'] ?? null) ? $res['rows'] : [];
         $exportRows = $this->installmentExportRows($rows);
 
+        $branding = [];
+        try {
+            $branding = (new CompanyProfileService())->branding();
+        } catch (\Throwable) {
+            $branding = [];
+        }
+
         $pdf = new ProfessionalPdf();
         $pdf->addPage();
+        $y = PdfStandardTheme::renderHeaderMinimal($pdf, $branding, 595, 842, 50, 54, 4, 28, 200, 32);
         $pdf->setFillColor(26, 26, 26);
-        $pdf->setFont('F2', 12);
-        $pdf->text(50, 800, 'Relatório Financeiro — Parcelas');
+        $pdf->setFont('F2', 14);
+        $pdf->text(50, $y, 'Relatório Financeiro — Parcelas');
+        $y -= 18;
         $pdf->setFont('F1', 11);
         $range = 'Período: ' . (($filters['from'] !== '' && $filters['to'] !== '') ? ($filters['from'] . ' até ' . $filters['to']) : 'todos');
-        $pdf->text(50, 784, $range);
+        $pdf->text(50, $y, $range);
+        $y -= 14;
         $sortLabel = 'Ordenação: ' . $this->sortLabel($filters);
-        $pdf->text(50, 770, $sortLabel);
+        $pdf->text(50, $y, $sortLabel);
+        $y -= 14;
 
         $totals = is_array(($metrics['totals'] ?? null)) ? $metrics['totals'] : [];
         $kpiLine = 'A receber: R$ ' . number_format((float) ($totals['receivable'] ?? 0), 2, ',', '.') . '  |  Recebido: R$ ' . number_format((float) ($totals['received'] ?? 0), 2, ',', '.') . '  |  Vencido: R$ ' . number_format((float) ($totals['overdue'] ?? 0), 2, ',', '.');
-        $pdf->text(50, 756, $kpiLine);
-
-        $y = 726;
+        $pdf->text(50, $y, $kpiLine);
+        $y -= 26;
         $pdf->setFont('F2', 12);
         $pdf->text(50, $y, 'Venc');
         $pdf->text(100, $y, 'N');
@@ -144,11 +156,11 @@ final class ReportController
         foreach ($exportRows as $r) {
             if ($y < 70) {
                 $pdf->addPage();
-                $y = 800;
+                $y = PdfStandardTheme::renderHeaderMinimal($pdf, $branding, 595, 842, 50, 54, 4, 28, 200, 32);
                 $pdf->setFillColor(26, 26, 26);
                 $pdf->setFont('F2', 12);
                 $pdf->text(50, $y, 'Relatório Financeiro — Parcelas (continuação)');
-                $y -= 24;
+                $y -= 22;
                 $pdf->setFont('F1', 11);
             }
 
@@ -163,6 +175,8 @@ final class ReportController
             $pdf->text(450, $y, 'R$ ' . number_format((float) ($r['total'] ?? 0), 2, ',', '.'));
             $y -= 14;
         }
+
+        PdfStandardTheme::appendCenteredFooterPaginationAndContact($pdf, 595, '+5567993256260 • comercial@traxter.com.br', 20, [71, 85, 105], 10);
 
         $bytes = $pdf->output();
         header('Content-Type: application/pdf');

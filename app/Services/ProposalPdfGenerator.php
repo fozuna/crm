@@ -5,11 +5,12 @@ namespace App\Services;
 
 final class ProposalPdfGenerator
 {
+    private string $contactLine = '+5567993256260 • comercial@traxter.com.br';
     private string $company = 'TRAXTER.';
     private string $logoPath = '';
     private array $primary = [41, 50, 65];
     private array $accent = [238, 108, 77];
-    private string $companyMeta = '';
+    private string $companyCnpj = '';
 
     private array $textBody = [26, 26, 26];
     private array $textHeading = [17, 24, 39];
@@ -46,26 +47,7 @@ final class ProposalPdfGenerator
         $this->company = (string) ($branding['company_name'] ?? 'TRAXTER');
         $this->logoPath = (string) ($branding['logo_path'] ?? '');
         $this->fontScale = 1.0;
-        $this->computeFooterLogo();
-
-        $meta = [];
-        $cnpj = $this->formatCnpj((string) ($branding['company_cnpj'] ?? ''));
-        if ($cnpj !== '') {
-            $meta[] = 'CNPJ: ' . $cnpj;
-        }
-        $wa = trim((string) ($branding['company_whatsapp'] ?? ''));
-        if ($wa !== '') {
-            $meta[] = 'WhatsApp: ' . $wa;
-        }
-        $email = trim((string) ($branding['company_email'] ?? ''));
-        if ($email !== '') {
-            $meta[] = $email;
-        }
-        $site = trim((string) ($branding['company_website'] ?? ''));
-        if ($site !== '') {
-            $meta[] = $site;
-        }
-        $this->companyMeta = implode(' • ', $meta);
+        $this->companyCnpj = (string) ($branding['company_cnpj'] ?? '');
 
         $this->renderHeader($pdf);
 
@@ -92,7 +74,7 @@ final class ProposalPdfGenerator
 
         $this->footerBlock($pdf, $y, $issueDate);
 
-        $this->addPageNumbers($pdf);
+        PdfStandardTheme::appendCenteredFooterPaginationAndContact($pdf, $this->pageW, $this->contactLine, 20, [71, 85, 105], 10);
 
         return $pdf->output();
     }
@@ -109,35 +91,25 @@ final class ProposalPdfGenerator
 
     private function renderHeader(ProfessionalPdf $pdf): void
     {
-        $primary = $this->primary;
-        $accent = $this->accent;
-        $company = $this->company;
-        $logoPath = $this->logoPath;
-
-        $pdf->setFillColor($primary[0], $primary[1], $primary[2]);
-        $pdf->rect(0, $this->pageH - $this->headerH, $this->pageW, $this->headerH, 'F');
-        $pdf->setFillColor($accent[0], $accent[1], $accent[2]);
-        $pdf->rect(0, $this->pageH - $this->headerH - 4, $this->pageW, 4, 'F');
-
-        $textX = $this->x0;
-
-        $this->setFontScaled($pdf, 'F2', 12);
-        $headerText = $this->bestTextOn($primary);
-        $pdf->setFillColor($headerText[0], $headerText[1], $headerText[2]);
-        $pdf->text($textX, $this->pageH - $this->headerH + 24, $company);
-
-        if ($this->companyMeta !== '') {
-            $this->setFontScaled($pdf, 'F1', 11);
-            $pdf->text($textX, $this->pageH - $this->headerH + 10, $this->companyMeta);
-        }
-        $this->applyBodyText($pdf);
-
-        if ($logoPath !== '' && is_file($logoPath)) {
-            $this->renderFooterLogo($pdf, $logoPath);
-        }
-
         $gap = (int) floor(($this->margin + 14) / 2);
-        $this->yTop = $this->pageH - $this->headerH - $gap;
+        $this->yTop = PdfStandardTheme::renderHeaderMinimal(
+            $pdf,
+            [
+                'primary_color' => (string) ($this->rgbToHex($this->primary)),
+                'accent_color' => (string) ($this->rgbToHex($this->accent)),
+                'logo_path' => $this->logoPath,
+                'company_cnpj' => $this->companyCnpj,
+            ],
+            $this->pageW,
+            $this->pageH,
+            $this->margin,
+            $this->headerH,
+            4,
+            $gap,
+            200,
+            32
+        );
+        $this->applyBodyText($pdf);
     }
 
     private function computeFooterLogo(): void
@@ -519,19 +491,15 @@ final class ProposalPdfGenerator
         $this->centerText($pdf, $rightCx, $labelY - $this->sp(12), '30.358.115/0001-13', 'F1', 11);
     }
 
-    private function addPageNumbers(ProfessionalPdf $pdf): void
+    private function rgbToHex(array $rgb): string
     {
-        $ref = new \ReflectionClass($pdf);
-        $prop = $ref->getProperty('pages');
-        $prop->setAccessible(true);
-        $pages = (array) $prop->getValue($pdf);
-        $total = count($pages);
-        $rg = $this->rgOp($this->textBody);
-        foreach ($pages as $i => $ops) {
-            $ops[] = $rg . ' BT /F1 11 Tf 500 20 Td (Pagina ' . ($i + 1) . ' de ' . $total . ') Tj ET';
-            $pages[$i] = $ops;
-        }
-        $prop->setValue($pdf, $pages);
+        $r = (int) ($rgb[0] ?? 0);
+        $g = (int) ($rgb[1] ?? 0);
+        $b = (int) ($rgb[2] ?? 0);
+        $r = max(0, min(255, $r));
+        $g = max(0, min(255, $g));
+        $b = max(0, min(255, $b));
+        return sprintf('#%02x%02x%02x', $r, $g, $b);
     }
 
     private function ensureSpace(ProfessionalPdf $pdf, int $y, int $minY): int
