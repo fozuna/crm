@@ -18,11 +18,21 @@ final class ClientController
     {
         $repo = new ClientRepository();
         $clients = $repo->all();
+        $toastType = strtolower((string) $request->input('toast', ''));
+        $toastMessage = trim((string) $request->input('msg', ''));
+        if (!in_array($toastType, ['success', 'error', 'warning', 'info'], true)) {
+            $toastType = '';
+        }
+        if ($toastMessage !== '' && strlen($toastMessage) > 220) {
+            $toastMessage = substr($toastMessage, 0, 220);
+        }
 
         View::render('clients/index', [
             'csrf' => Csrf::token(),
             'base' => $request->basePath(),
             'clients' => $clients,
+            'toastType' => $toastType,
+            'toastMessage' => $toastMessage,
         ]);
     }
 
@@ -174,8 +184,40 @@ final class ClientController
     public function destroy(Request $request, array $params): void
     {
         $id = (int) ($params['id'] ?? 0);
-        (new ClientRepository())->delete($id);
-        Response::redirect($request->basePath() . '/clientes');
+        if ($id <= 0) {
+            Response::redirect($request->basePath() . '/clientes?toast=error&msg=' . rawurlencode('Cliente inválido.'));
+        }
+
+        $repo = new ClientRepository();
+        $client = $repo->find($id);
+        if ($client === null) {
+            Response::redirect($request->basePath() . '/clientes?toast=error&msg=' . rawurlencode('Cliente não encontrado.'));
+        }
+
+        $deps = $repo->dependencyCounts($id);
+        $blocked = array_sum(array_map('intval', $deps)) > 0;
+        if ($blocked) {
+            $msg = 'Não foi possível excluir: cliente possui vínculos em outros módulos.';
+            Response::redirect($request->basePath() . '/clientes?toast=warning&msg=' . rawurlencode($msg));
+        }
+
+        $logoPath = (string) ($client['logo_path'] ?? '');
+        try {
+            $repo->delete($id);
+        } catch (\PDOException $e) {
+            $code = (string) $e->getCode();
+            if ($code === '23000') {
+                $msg = 'Não foi possível excluir: cliente possui vínculos em outros módulos.';
+                Response::redirect($request->basePath() . '/clientes?toast=warning&msg=' . rawurlencode($msg));
+            }
+            throw $e;
+        }
+
+        if ($logoPath !== '' && is_file($logoPath)) {
+            @unlink($logoPath);
+        }
+
+        Response::redirect($request->basePath() . '/clientes?toast=success&msg=' . rawurlencode('Cliente excluído com sucesso.'));
     }
 
     private function validate(Request $request): array

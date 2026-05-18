@@ -1,5 +1,9 @@
 /.env
 
+/config/*
+!/config/
+!/config/.gitkeep
+
 /storage/branding/*
 !/storage/branding/
 !/storage/branding/.gitkeep

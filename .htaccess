@@ -8,7 +8,7 @@ Options -Indexes
 <IfModule mod_rewrite.c>
   RewriteEngine On
 
-  RewriteRule ^(app|config|database|docs|resources|storage|tools)/ - [F,L]
+  RewriteRule ^(app|config|database|docs|resources|storage|tests|tools)/ - [F,L]
 
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d

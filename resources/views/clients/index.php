@@ -2,7 +2,13 @@
 use App\Core\View;
 use App\Core\UI;
 $title = 'Clientes';
+$toastType = (string) ($toastType ?? '');
+$toastMessage = (string) ($toastMessage ?? '');
 ?>
+
+<?php if ($toastType !== '' && $toastMessage !== ''): ?>
+  <script>window.trToast && window.trToast('<?= View::e($toastType) ?>', '<?= View::e($toastMessage) ?>');</script>
+<?php endif; ?>
 
 <div class="flex items-center justify-between">
   <div>

@@ -7,6 +7,29 @@ use App\Core\DB;
 
 final class ClientRepository
 {
+    public function dependencyCounts(int $clientId): array
+    {
+        $pdo = DB::pdo();
+
+        $count = static function (string $table) use ($pdo, $clientId): int {
+            try {
+                $stmt = $pdo->prepare("SELECT COUNT(*) FROM {$table} WHERE client_id = :id");
+                $stmt->bindValue(':id', $clientId, \PDO::PARAM_INT);
+                $stmt->execute();
+                return (int) $stmt->fetchColumn();
+            } catch (\Throwable) {
+                return 0;
+            }
+        };
+
+        return [
+            'proposals' => $count('proposals'),
+            'projects' => $count('projects'),
+            'contracts' => $count('contracts'),
+            'receivables' => $count('financial_accounts_receivable'),
+        ];
+    }
+
     public function all(): array
     {
         $pdo = DB::pdo();
