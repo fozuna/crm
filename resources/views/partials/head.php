@@ -84,6 +84,7 @@ $faviconHref = !empty($branding['favicon_path']) ? ($basePath . '/empresa/ativo/
         check: '<path d="M20.25 6.75 9.75 17.25 3.75 11.25"></path>',
         x: '<path d="M6 6l12 12"></path><path d="M18 6 6 18"></path>',
         'arrow-left': '<path d="M10.5 19.5 3 12l7.5-7.5"></path><path d="M3 12h18"></path>',
+        dollar: '<path d="M12 3.75v16.5"></path><path d="M16.5 7.5a3.75 3.75 0 1 0-7.5 0c0 2.071 1.679 3.75 3.75 3.75s3.75 1.679 3.75 3.75a3.75 3.75 0 1 1-7.5 0"></path>',
         pdf: '<path d="M6 2.25h8.25L18 6v15A.75.75 0 0 1 17.25 21H6.75A.75.75 0 0 1 6 20.25V2.25Z"></path><path d="M14.25 2.25V6H18"></path><path d="M7.5 13.5h9m-9 3h6"></path>',
         excel: '<path d="M6 2.25h8.25L18 6v15A.75.75 0 0 1 17.25 21H6.75A.75.75 0 0 1 6 20.25V2.25Z"></path><path d="M14.25 2.25V6H18"></path><path d="M7.5 10.5h9"></path><path d="M7.5 13.5h9"></path><path d="M7.5 16.5h9"></path><path d="M9 10.5v6"></path><path d="M12 10.5v6"></path><path d="M15 10.5v6"></path>',
         print: '<path d="M7.5 8.25V3.75h9v4.5"></path><path d="M6.75 16.5h10.5v3.75H6.75z"></path><path d="M5.25 8.25h13.5A2.25 2.25 0 0 1 21 10.5v4.5a2.25 2.25 0 0 1-2.25 2.25h-1.5V13.5H6.75v3.75h-1.5A2.25 2.25 0 0 1 3 15v-4.5a2.25 2.25 0 0 1 2.25-2.25Z"></path><path d="M17.25 11.25h.01"></path>',
@@ -107,6 +108,9 @@ $faviconHref = !empty($branding['favicon_path']) ? ($basePath . '/empresa/ativo/
 
       function inferIcon(label, el){
         var txt = normalizeLabel(label).toLowerCase();
+        try {
+          txt = txt.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        } catch (e) {}
         var href = String((el && el.getAttribute && (el.getAttribute('href') || el.getAttribute('action'))) || '').toLowerCase();
         if (/voltar|retornar|anterior/.test(txt)) return 'arrow-left';
         if (/imprimir/.test(txt)) return 'print';
@@ -121,7 +125,8 @@ $faviconHref = !empty($branding['favicon_path']) ? ($basePath . '/empresa/ativo/
         if (/filtro|filtrar|aplicar/.test(txt)) return 'filter';
         if (/buscar|pesquisar/.test(txt)) return 'search';
         if (/dashboard|painel|indicador/.test(txt)) return 'chart';
-        if (/lista|listagem|recebiveis|relatorios/.test(txt)) return 'list';
+        if (/recebiveis/.test(txt)) return 'dollar';
+        if (/lista|listagem|relatorios/.test(txt)) return 'list';
         if (/cancelar|fechar/.test(txt)) return 'x';
         if (/aprovar|confirmar|pagar|baixa/.test(txt)) return 'check';
         if (/renegociar|estornar|atualizar|sincronizar|reabrir/.test(txt) || /refresh/.test(href)) return 'refresh';
