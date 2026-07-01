@@ -1,3 +1,9 @@
+-- ============================================================================
+-- BLOCO 1: EXPANSAO DA TABELA DE CLIENTES PARA SUPORTAR CRM COMERCIAL,
+-- CONTRATOS, FATURAMENTO E VINCULO OPCIONAL COM O LEAD DE ORIGEM.
+-- Todas as colunas novas sao adicionadas de forma aditiva para preservar dados
+-- existentes e permitir reuso posterior no fluxo de propostas e conversao.
+-- ============================================================================
 ALTER TABLE clients
   ADD COLUMN contact_person VARCHAR(190) NULL AFTER company,
   ADD COLUMN status ENUM('lead','ativo') NOT NULL DEFAULT 'lead' AFTER contact_person,
@@ -13,6 +19,10 @@ ALTER TABLE clients
   ADD COLUMN logo_mime VARCHAR(120) NULL AFTER logo_path,
   ADD COLUMN logo_original_name VARCHAR(255) NULL AFTER logo_mime;
 
+-- ============================================================================
+-- BLOCO 2: HISTORICO DE INTERACOES DE CLIENTES.
+-- Estrutura necessaria para preservar o contexto comercial apos conversoes.
+-- ============================================================================
 CREATE TABLE IF NOT EXISTS client_interactions (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   client_id INT UNSIGNED NOT NULL,
@@ -23,6 +33,10 @@ CREATE TABLE IF NOT EXISTS client_interactions (
   CONSTRAINT fk_interactions_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ============================================================================
+-- BLOCO 3: EVOLUCAO DA TABELA DE PROPOSTAS E CADASTROS AUXILIARES.
+-- Inclui campos comerciais, pagamento estruturado e suporte a contratos.
+-- ============================================================================
 ALTER TABLE proposals
   ADD COLUMN description MEDIUMTEXT NULL AFTER title,
   ADD COLUMN subtotal DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER status,
@@ -68,9 +82,11 @@ CREATE TABLE IF NOT EXISTS services (
   INDEX idx_services_bonus (is_bonus)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Vinculo de forma de pagamento padronizada para propostas existentes e novas.
 ALTER TABLE proposals
   ADD CONSTRAINT fk_proposals_payment_method FOREIGN KEY (payment_method_id) REFERENCES payment_methods(id) ON DELETE SET NULL;
 
+-- Marcos de entrega vinculados a cada proposta.
 CREATE TABLE IF NOT EXISTS proposal_milestones (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   proposal_id INT UNSIGNED NOT NULL,
@@ -83,6 +99,7 @@ CREATE TABLE IF NOT EXISTS proposal_milestones (
   CONSTRAINT fk_milestones_proposal FOREIGN KEY (proposal_id) REFERENCES proposals(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Itens de proposta passam a suportar catalogo de servicos e bonus.
 ALTER TABLE proposal_items
   ADD COLUMN service_id INT UNSIGNED NULL AFTER proposal_id;
 
@@ -98,6 +115,7 @@ ALTER TABLE proposal_items
 ALTER TABLE proposal_items
   ADD CONSTRAINT fk_items_service FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE SET NULL;
 
+-- Historico de PDFs/versoes geradas para propostas.
 CREATE TABLE IF NOT EXISTS proposal_documents (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   proposal_id INT UNSIGNED NOT NULL,
@@ -110,6 +128,10 @@ CREATE TABLE IF NOT EXISTS proposal_documents (
   CONSTRAINT fk_docs_proposal FOREIGN KEY (proposal_id) REFERENCES proposals(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ============================================================================
+-- BLOCO 4: SUBSISTEMA DE CONTRATOS.
+-- Cria templates, contratos gerados, versoes e notificacoes transacionais.
+-- ============================================================================
 CREATE TABLE IF NOT EXISTS contract_templates (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(190) NOT NULL,
@@ -196,13 +218,15 @@ CREATE TABLE IF NOT EXISTS contract_notifications (
   CONSTRAINT fk_contract_notifications_contract FOREIGN KEY (contract_id) REFERENCES contracts(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Seed idempotente do template padrao.
+-- O campo legado "body" foi removido deste UPSERT para manter compatibilidade
+-- com instalacoes novas, onde apenas "body_template" existe.
 INSERT INTO contract_templates (
-  id, name, body, slug, description, is_active, auto_criteria_json, signature_mode_default,
+  id, name, slug, description, is_active, auto_criteria_json, signature_mode_default,
   require_signature_default, header_title, body_template, footer_notes, created_at, updated_at
 ) VALUES (
   1,
   'Prestacao de Servicos Padrao',
-  'CONTRATADA:\n{{company_legal_name}}\nCNPJ: {{company_cnpj}}\nE-mail: {{company_email}}\n\nCONTRATANTE:\n{{client_name}}\nEmpresa: {{client_company}}\nE-mail: {{client_email}}\nTelefone: {{client_phone}}\n\nOBJETO\nA CONTRATADA prestara os servicos descritos na proposta aprovada {{proposal_title}}.\n\nSERVICOS CONTRATADOS\n{{services_summary}}\n\nVALORES E CONDICOES DE PAGAMENTO\nValor total da proposta: {{proposal_total}}\n{{payment_schedule}}\n\nPRAZOS\nInicio previsto: {{delivery_start}}\nTermino previsto: {{delivery_end}}\n{{milestones_summary}}\n\nTERMOS COMERCIAIS\n{{proposal_terms}}\n\nOBSERVACOES\n{{proposal_notes}}\n\nFORMALIZACAO\nEste contrato foi gerado automaticamente a partir da proposta #{{proposal_id}} e deve seguir o fluxo de assinatura selecionado para a proposta.',
   'prestacao-servicos-padrao',
   'Template padrao para contratos gerados a partir de propostas aprovadas.',
   1,
@@ -216,7 +240,7 @@ INSERT INTO contract_templates (
   NOW()
 ) ON DUPLICATE KEY UPDATE
   name = VALUES(name),
-  body = VALUES(body),
+  slug = VALUES(slug),
   description = VALUES(description),
   auto_criteria_json = VALUES(auto_criteria_json),
   signature_mode_default = VALUES(signature_mode_default),
@@ -227,6 +251,7 @@ INSERT INTO contract_templates (
   is_active = VALUES(is_active),
   updated_at = NOW();
 
+-- Branding padrao da proposta para ambientes existentes que ainda nao tinham seed.
 CREATE TABLE IF NOT EXISTS proposal_branding (
   id INT UNSIGNED PRIMARY KEY,
   company_name VARCHAR(190) NOT NULL,
@@ -237,6 +262,20 @@ CREATE TABLE IF NOT EXISTS proposal_branding (
   updated_at DATETIME NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+INSERT INTO proposal_branding (id, company_name, logo_path, primary_color, accent_color, font_name, updated_at)
+VALUES (1, 'TRAXTER', NULL, '#293241', '#ee6c4d', 'Helvetica', NOW())
+ON DUPLICATE KEY UPDATE
+  company_name = VALUES(company_name),
+  logo_path = VALUES(logo_path),
+  primary_color = VALUES(primary_color),
+  accent_color = VALUES(accent_color),
+  font_name = VALUES(font_name),
+  updated_at = VALUES(updated_at);
+
+-- ============================================================================
+-- BLOCO 5: EVOLUCAO DE USUARIOS E PERFIL DA EMPRESA.
+-- Ajustes necessarios para papeis, branding e auditoria institucional.
+-- ============================================================================
 ALTER TABLE users
   ADD COLUMN is_admin TINYINT(1) NOT NULL DEFAULT 0 AFTER password_hash;
 
@@ -295,6 +334,10 @@ CREATE TABLE IF NOT EXISTS company_profile_audit (
   INDEX idx_company_profile_audit_actor (actor_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ============================================================================
+-- BLOCO 6: PROJETOS, FINANCEIRO E OPERACAO.
+-- Estruturas corporativas vinculadas ao ciclo proposta -> projeto -> financeiro.
+-- ============================================================================
 CREATE TABLE IF NOT EXISTS projects (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   proposal_id INT UNSIGNED NOT NULL,
@@ -573,6 +616,7 @@ CREATE TABLE IF NOT EXISTS financial_audit_logs (
   CONSTRAINT fk_financial_audit_receivable FOREIGN KEY (receivable_id) REFERENCES financial_accounts_receivable(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Seeds idempotentes de categorias, centros de custo e conta bancaria.
 INSERT INTO financial_categories (company_id, name, type, color, active, created_at, updated_at)
 VALUES
 (1, 'Mensalidades', 'receivable', '#3B82F6', 1, NOW(), NOW()),
@@ -592,6 +636,10 @@ VALUES
 (1, 'Conta principal', 'Conta principal TRAXTER', NULL, NULL, NULL, 1, NOW(), NOW())
 ON DUPLICATE KEY UPDATE updated_at = VALUES(updated_at);
 
+-- ============================================================================
+-- BLOCO 7: AUDITORIA GERAL E ESTRUTURAS DE LEADS.
+-- Este trecho consolida o modulo comercial e o funil de vendas.
+-- ============================================================================
 CREATE TABLE IF NOT EXISTS audit_log (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   entity_type VARCHAR(40) NOT NULL,
@@ -603,3 +651,113 @@ CREATE TABLE IF NOT EXISTS audit_log (
   INDEX idx_audit_entity (entity_type, entity_id),
   INDEX idx_audit_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Complemento de campos de clientes vindos do modulo de leads.
+-- "source_lead_id" permite rastrear com seguranca a origem do prospect/cliente.
+ALTER TABLE clients
+  ADD COLUMN person_type ENUM('pf','pj') NOT NULL DEFAULT 'pj' AFTER contact_person,
+  ADD COLUMN document_number VARCHAR(18) NULL AFTER person_type,
+  ADD COLUMN secondary_phone VARCHAR(60) NULL AFTER phone,
+  ADD COLUMN postal_code VARCHAR(12) NULL AFTER secondary_phone,
+  ADD COLUMN street VARCHAR(190) NULL AFTER postal_code,
+  ADD COLUMN street_number VARCHAR(30) NULL AFTER street,
+  ADD COLUMN address_complement VARCHAR(190) NULL AFTER street_number,
+  ADD COLUMN neighborhood VARCHAR(120) NULL AFTER address_complement,
+  ADD COLUMN city VARCHAR(120) NULL AFTER neighborhood,
+  ADD COLUMN state VARCHAR(2) NULL AFTER city,
+  ADD COLUMN birth_or_opening_date DATE NULL AFTER state,
+  ADD COLUMN market_segment VARCHAR(120) NULL AFTER birth_or_opening_date,
+  ADD COLUMN acquisition_source VARCHAR(120) NULL AFTER market_segment,
+  ADD COLUMN billing_email VARCHAR(190) NULL AFTER acquisition_source,
+  ADD COLUMN billing_phone VARCHAR(60) NULL AFTER billing_email,
+  ADD COLUMN billing_notes TEXT NULL AFTER billing_phone,
+  ADD COLUMN contract_notes TEXT NULL AFTER billing_notes,
+  ADD COLUMN source_lead_id INT UNSIGNED NULL AFTER contract_notes;
+
+ALTER TABLE clients
+  ADD INDEX idx_clients_source_lead (source_lead_id);
+
+-- Cadastro principal do funil comercial.
+CREATE TABLE IF NOT EXISTS leads (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(190) NOT NULL,
+  company VARCHAR(190) NULL,
+  contact_person VARCHAR(190) NULL,
+  person_type ENUM('pf','pj') NOT NULL DEFAULT 'pj',
+  document_number VARCHAR(18) NOT NULL,
+  email VARCHAR(190) NOT NULL,
+  phone VARCHAR(60) NOT NULL,
+  secondary_phone VARCHAR(60) NULL,
+  postal_code VARCHAR(12) NOT NULL,
+  street VARCHAR(190) NOT NULL,
+  street_number VARCHAR(30) NOT NULL,
+  address_complement VARCHAR(190) NULL,
+  neighborhood VARCHAR(120) NOT NULL,
+  city VARCHAR(120) NOT NULL,
+  state VARCHAR(2) NOT NULL,
+  birth_or_opening_date DATE NOT NULL,
+  market_segment VARCHAR(120) NOT NULL,
+  acquisition_source VARCHAR(120) NOT NULL,
+  stage ENUM('cadastro_realizado','em_contato','proposta_enviada','negociacao_em_andamento','pronto_para_aprovacao','aprovado') NOT NULL DEFAULT 'cadastro_realizado',
+  notes TEXT NULL,
+  converted_client_id INT UNSIGNED NULL,
+  converted_at DATETIME NULL,
+  created_by INT UNSIGNED NULL,
+  updated_by INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  INDEX idx_leads_stage (stage, updated_at),
+  INDEX idx_leads_email (email),
+  INDEX idx_leads_document (document_number),
+  INDEX idx_leads_converted (converted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Interacoes registradas durante o atendimento comercial do lead.
+CREATE TABLE IF NOT EXISTS lead_interactions (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  lead_id INT UNSIGNED NOT NULL,
+  kind ENUM('nota','email','call','meeting') NOT NULL DEFAULT 'nota',
+  note TEXT NOT NULL,
+  created_by INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL,
+  INDEX idx_lead_interactions_lead (lead_id, created_at),
+  CONSTRAINT fk_lead_interactions_lead FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Historico de movimentacoes do Kanban para auditoria e analise comercial.
+CREATE TABLE IF NOT EXISTS lead_stage_history (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  lead_id INT UNSIGNED NOT NULL,
+  from_stage ENUM('cadastro_realizado','em_contato','proposta_enviada','negociacao_em_andamento','pronto_para_aprovacao','aprovado') NULL,
+  to_stage ENUM('cadastro_realizado','em_contato','proposta_enviada','negociacao_em_andamento','pronto_para_aprovacao','aprovado') NOT NULL,
+  action ENUM('create','update','move','convert') NOT NULL DEFAULT 'move',
+  note TEXT NULL,
+  actor_id INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL,
+  INDEX idx_lead_stage_history_lead (lead_id, created_at),
+  CONSTRAINT fk_lead_stage_history_lead FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE leads
+  ADD CONSTRAINT fk_leads_converted_client FOREIGN KEY (converted_client_id) REFERENCES clients(id) ON DELETE SET NULL;
+
+-- ============================================================================
+-- BLOCO 8: SEEDS IDEMPOTENTES DE FORMAS DE PAGAMENTO.
+-- Sao inseridas apenas quando ainda nao existirem registros equivalentes,
+-- evitando duplicacao em reexecucoes do upgrade.
+-- ============================================================================
+INSERT INTO payment_methods (name, type, active, discount_percent, installments_count, interval_days, has_down_payment, down_payment_percent, special_terms, created_at)
+SELECT 'À vista (5% desconto)', 'avista', 1, 5.00, 1, 30, 0, 0.00, NULL, NOW()
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM payment_methods
+  WHERE name = 'À vista (5% desconto)'
+);
+
+INSERT INTO payment_methods (name, type, active, discount_percent, installments_count, interval_days, has_down_payment, down_payment_percent, special_terms, created_at)
+SELECT 'Parcelado 3x (sem entrada)', 'parcelado', 1, 0.00, 3, 30, 0, 0.00, NULL, NOW()
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM payment_methods
+  WHERE name = 'Parcelado 3x (sem entrada)'
+);

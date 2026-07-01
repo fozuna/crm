@@ -3,9 +3,10 @@ declare(strict_types=1);
 
 namespace App\Repositories;
 
+use App\Contracts\AuditLogRepositoryContract;
 use App\Core\DB;
 
-final class AuditLogRepository
+final class AuditLogRepository implements AuditLogRepositoryContract
 {
     public function create(string $entityType, int $entityId, string $action, ?int $actorId, ?array $data): void
     {
@@ -58,4 +59,3 @@ final class AuditLogRepository
         return $rows;
     }
 }
-

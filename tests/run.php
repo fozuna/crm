@@ -77,4 +77,7 @@ $longPdf = $gen->build($branding, $long);
 $assert(str_starts_with($longPdf, '%PDF-1.4'), 'Geração com descrição longa permanece válida');
 $assert(str_contains($longPdf, 'Servicos / Itens'), 'PDF com descrição longa mantém seção de itens');
 
+$leadFailures = require __DIR__ . '/leads_module.php';
+$failures += (int) $leadFailures;
+
 exit($failures > 0 ? 1 : 0);

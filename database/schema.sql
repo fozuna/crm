@@ -15,6 +15,24 @@ CREATE TABLE IF NOT EXISTS clients (
   phone VARCHAR(60) NULL,
   company VARCHAR(190) NULL,
   contact_person VARCHAR(190) NULL,
+  person_type ENUM('pf','pj') NOT NULL DEFAULT 'pj',
+  document_number VARCHAR(18) NULL,
+  secondary_phone VARCHAR(60) NULL,
+  postal_code VARCHAR(12) NULL,
+  street VARCHAR(190) NULL,
+  street_number VARCHAR(30) NULL,
+  address_complement VARCHAR(190) NULL,
+  neighborhood VARCHAR(120) NULL,
+  city VARCHAR(120) NULL,
+  state VARCHAR(2) NULL,
+  birth_or_opening_date DATE NULL,
+  market_segment VARCHAR(120) NULL,
+  acquisition_source VARCHAR(120) NULL,
+  billing_email VARCHAR(190) NULL,
+  billing_phone VARCHAR(60) NULL,
+  billing_notes TEXT NULL,
+  contract_notes TEXT NULL,
+  source_lead_id INT UNSIGNED NULL,
   status ENUM('lead','ativo') NOT NULL DEFAULT 'lead',
   project_reference VARCHAR(190) NULL,
   has_hosting_contract TINYINT(1) NOT NULL DEFAULT 0,
@@ -27,6 +45,7 @@ CREATE TABLE IF NOT EXISTS clients (
   logo_path VARCHAR(255) NULL,
   logo_mime VARCHAR(120) NULL,
   logo_original_name VARCHAR(255) NULL,
+  INDEX idx_clients_source_lead (source_lead_id),
   created_at DATETIME NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -38,6 +57,65 @@ CREATE TABLE IF NOT EXISTS client_interactions (
   created_at DATETIME NOT NULL,
   INDEX idx_interactions_client (client_id),
   CONSTRAINT fk_interactions_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS leads (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(190) NOT NULL,
+  company VARCHAR(190) NULL,
+  contact_person VARCHAR(190) NULL,
+  person_type ENUM('pf','pj') NOT NULL DEFAULT 'pj',
+  document_number VARCHAR(18) NOT NULL,
+  email VARCHAR(190) NOT NULL,
+  phone VARCHAR(60) NOT NULL,
+  secondary_phone VARCHAR(60) NULL,
+  postal_code VARCHAR(12) NOT NULL,
+  street VARCHAR(190) NOT NULL,
+  street_number VARCHAR(30) NOT NULL,
+  address_complement VARCHAR(190) NULL,
+  neighborhood VARCHAR(120) NOT NULL,
+  city VARCHAR(120) NOT NULL,
+  state VARCHAR(2) NOT NULL,
+  birth_or_opening_date DATE NOT NULL,
+  market_segment VARCHAR(120) NOT NULL,
+  acquisition_source VARCHAR(120) NOT NULL,
+  stage ENUM('cadastro_realizado','em_contato','proposta_enviada','negociacao_em_andamento','pronto_para_aprovacao','aprovado') NOT NULL DEFAULT 'cadastro_realizado',
+  notes TEXT NULL,
+  converted_client_id INT UNSIGNED NULL,
+  converted_at DATETIME NULL,
+  created_by INT UNSIGNED NULL,
+  updated_by INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  INDEX idx_leads_stage (stage, updated_at),
+  INDEX idx_leads_email (email),
+  INDEX idx_leads_document (document_number),
+  INDEX idx_leads_converted (converted_at),
+  CONSTRAINT fk_leads_converted_client FOREIGN KEY (converted_client_id) REFERENCES clients(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS lead_interactions (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  lead_id INT UNSIGNED NOT NULL,
+  kind ENUM('nota','email','call','meeting') NOT NULL DEFAULT 'nota',
+  note TEXT NOT NULL,
+  created_by INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL,
+  INDEX idx_lead_interactions_lead (lead_id, created_at),
+  CONSTRAINT fk_lead_interactions_lead FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS lead_stage_history (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  lead_id INT UNSIGNED NOT NULL,
+  from_stage ENUM('cadastro_realizado','em_contato','proposta_enviada','negociacao_em_andamento','pronto_para_aprovacao','aprovado') NULL,
+  to_stage ENUM('cadastro_realizado','em_contato','proposta_enviada','negociacao_em_andamento','pronto_para_aprovacao','aprovado') NOT NULL,
+  action ENUM('create','update','move','convert') NOT NULL DEFAULT 'move',
+  note TEXT NULL,
+  actor_id INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL,
+  INDEX idx_lead_stage_history_lead (lead_id, created_at),
+  CONSTRAINT fk_lead_stage_history_lead FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS proposals (
@@ -211,12 +289,11 @@ CREATE TABLE IF NOT EXISTS contract_notifications (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT INTO contract_templates (
-  id, name, body, slug, description, is_active, auto_criteria_json, signature_mode_default,
+  id, name, slug, description, is_active, auto_criteria_json, signature_mode_default,
   require_signature_default, header_title, body_template, footer_notes, created_at, updated_at
 ) VALUES (
   1,
   'Prestacao de Servicos Padrao',
-  'CONTRATADA:\n{{company_legal_name}}\nCNPJ: {{company_cnpj}}\nE-mail: {{company_email}}\n\nCONTRATANTE:\n{{client_name}}\nEmpresa: {{client_company}}\nE-mail: {{client_email}}\nTelefone: {{client_phone}}\n\nOBJETO\nA CONTRATADA prestara os servicos descritos na proposta aprovada {{proposal_title}}.\n\nSERVICOS CONTRATADOS\n{{services_summary}}\n\nVALORES E CONDICOES DE PAGAMENTO\nValor total da proposta: {{proposal_total}}\n{{payment_schedule}}\n\nPRAZOS\nInicio previsto: {{delivery_start}}\nTermino previsto: {{delivery_end}}\n{{milestones_summary}}\n\nTERMOS COMERCIAIS\n{{proposal_terms}}\n\nOBSERVACOES\n{{proposal_notes}}\n\nFORMALIZACAO\nEste contrato foi gerado automaticamente a partir da proposta #{{proposal_id}} e deve seguir o fluxo de assinatura selecionado para a proposta.',
   'prestacao-servicos-padrao',
   'Template padrao para contratos gerados a partir de propostas aprovadas.',
   1,
@@ -230,7 +307,7 @@ INSERT INTO contract_templates (
   NOW()
 ) ON DUPLICATE KEY UPDATE
   name = VALUES(name),
-  body = VALUES(body),
+  slug = VALUES(slug),
   description = VALUES(description),
   auto_criteria_json = VALUES(auto_criteria_json),
   signature_mode_default = VALUES(signature_mode_default),

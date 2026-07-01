@@ -16,6 +16,9 @@ final class DbUpgradeRunner
             'finance_installments',
             'finance_payments',
             'finance_cancellation_requests',
+            'leads',
+            'lead_interactions',
+            'lead_stage_history',
             'audit_log',
             'company_profile',
             'company_profile_audit',
@@ -41,7 +44,7 @@ final class DbUpgradeRunner
 
         $missingColumns = [];
         $needsColumns = [
-            'clients' => ['has_hosting_contract', 'hosting_contract_amount', 'hosting_due_date', 'hosting_renewal_days', 'manages_domain', 'domain_due_date', 'domain_amount'],
+            'clients' => ['person_type', 'document_number', 'secondary_phone', 'postal_code', 'street', 'street_number', 'address_complement', 'neighborhood', 'city', 'state', 'birth_or_opening_date', 'market_segment', 'acquisition_source', 'billing_email', 'billing_phone', 'billing_notes', 'contract_notes', 'source_lead_id', 'has_hosting_contract', 'hosting_contract_amount', 'hosting_due_date', 'hosting_renewal_days', 'manages_domain', 'domain_due_date', 'domain_amount'],
             'proposals' => ['requires_contract', 'contract_template_id', 'contract_policy_reason'],
             'company_profile' => ['brand_name', 'brand_tagline', 'primary_color', 'accent_color', 'font_name', 'meta_title', 'meta_description', 'meta_keywords', 'favicon_path', 'favicon_mime', 'favicon_original_name', 'meta_image_path', 'meta_image_mime', 'meta_image_original_name'],
             'contract_templates' => ['slug', 'description', 'is_active', 'auto_criteria_json', 'signature_mode_default', 'require_signature_default', 'header_title', 'body_template', 'footer_notes', 'updated_at'],
@@ -53,6 +56,7 @@ final class DbUpgradeRunner
             'proposal_items' => ['service_id', 'is_bonus', 'catalog_price'],
             'financial_accounts_receivable' => ['company_id', 'remaining_amount', 'status', 'source_installment_id'],
             'financial_receipts' => ['receipt_file_path', 'reversed_at', 'reversal_reason'],
+            'leads' => ['person_type', 'document_number', 'email', 'phone', 'postal_code', 'street', 'street_number', 'neighborhood', 'city', 'state', 'birth_or_opening_date', 'market_segment', 'acquisition_source', 'stage', 'converted_at'],
         ];
         foreach ($needsColumns as $table => $cols) {
             foreach ($cols as $col) {
@@ -125,6 +129,24 @@ final class DbUpgradeRunner
 
         [$ensAdded, $ensSkipped] = $this->ensureColumns($pdo, [
             'clients' => [
+                'person_type' => "ALTER TABLE clients ADD COLUMN person_type ENUM('pf','pj') NOT NULL DEFAULT 'pj'",
+                'document_number' => "ALTER TABLE clients ADD COLUMN document_number VARCHAR(18) NULL",
+                'secondary_phone' => "ALTER TABLE clients ADD COLUMN secondary_phone VARCHAR(60) NULL",
+                'postal_code' => "ALTER TABLE clients ADD COLUMN postal_code VARCHAR(12) NULL",
+                'street' => "ALTER TABLE clients ADD COLUMN street VARCHAR(190) NULL",
+                'street_number' => "ALTER TABLE clients ADD COLUMN street_number VARCHAR(30) NULL",
+                'address_complement' => "ALTER TABLE clients ADD COLUMN address_complement VARCHAR(190) NULL",
+                'neighborhood' => "ALTER TABLE clients ADD COLUMN neighborhood VARCHAR(120) NULL",
+                'city' => "ALTER TABLE clients ADD COLUMN city VARCHAR(120) NULL",
+                'state' => "ALTER TABLE clients ADD COLUMN state VARCHAR(2) NULL",
+                'birth_or_opening_date' => "ALTER TABLE clients ADD COLUMN birth_or_opening_date DATE NULL",
+                'market_segment' => "ALTER TABLE clients ADD COLUMN market_segment VARCHAR(120) NULL",
+                'acquisition_source' => "ALTER TABLE clients ADD COLUMN acquisition_source VARCHAR(120) NULL",
+                'billing_email' => "ALTER TABLE clients ADD COLUMN billing_email VARCHAR(190) NULL",
+                'billing_phone' => "ALTER TABLE clients ADD COLUMN billing_phone VARCHAR(60) NULL",
+                'billing_notes' => "ALTER TABLE clients ADD COLUMN billing_notes TEXT NULL",
+                'contract_notes' => "ALTER TABLE clients ADD COLUMN contract_notes TEXT NULL",
+                'source_lead_id' => "ALTER TABLE clients ADD COLUMN source_lead_id INT UNSIGNED NULL",
                 'has_hosting_contract' => "ALTER TABLE clients ADD COLUMN has_hosting_contract TINYINT(1) NOT NULL DEFAULT 0",
                 'hosting_contract_amount' => "ALTER TABLE clients ADD COLUMN hosting_contract_amount DECIMAL(12,2) NULL",
                 'hosting_due_date' => "ALTER TABLE clients ADD COLUMN hosting_due_date DATE NULL",

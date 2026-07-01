@@ -90,6 +90,9 @@ try {
       </div>
       <nav class="px-3 space-y-1">
         <?= $navLink('/dashboard', 'Dashboard', 'home') ?>
+        <?php if (in_array($role, ['admin','pm'], true)): ?>
+          <?= $navLink('/leads', 'Leads', 'users') ?>
+        <?php endif; ?>
         <?= $navLink('/clientes', 'Clientes', 'users') ?>
         <?= $navLink('/propostas', 'Propostas', 'briefcase') ?>
         <?php if (in_array($role, ['admin','pm','finance','auditor'], true)): ?>

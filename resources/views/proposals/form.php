@@ -5,6 +5,9 @@ $isEdit = is_array($proposal) && isset($proposal['id']);
 $title = $isEdit ? 'Editar proposta' : 'Nova proposta';
 $action = $isEdit ? ($base . '/propostas/' . $proposal['id']) : ($base . '/propostas');
 $selectedClient = (int)($proposal['client_id'] ?? 0);
+$leadPrefill = is_array($leadPrefill ?? null) ? $leadPrefill : null;
+$leadSummary = is_array($leadPrefill['summary'] ?? null) ? $leadPrefill['summary'] : null;
+$sourceLeadId = (int)($proposal['source_lead_id'] ?? ($leadPrefill['lead']['id'] ?? 0));
 $paymentMethods = is_array($paymentMethods ?? null) ? $paymentMethods : [];
 $services = is_array($services ?? null) ? $services : [];
 $paymentSelectedIndex = (int)($proposal['payment_selected_index'] ?? 0);
@@ -110,6 +113,77 @@ if (!$isEdit && count($milestones) === 0) {
 
 <form method="post" action="<?= View::e($action) ?>" class="mt-6 space-y-4">
   <input type="hidden" name="_csrf" value="<?= View::e($csrf) ?>">
+  <?php if ($sourceLeadId > 0): ?>
+    <input type="hidden" name="source_lead_id" value="<?= (int)$sourceLeadId ?>">
+  <?php endif; ?>
+
+  <?php if ($leadPrefill !== null): ?>
+    <div class="tr-card p-6 space-y-4">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div class="text-lg font-semibold text-slate-900">Dados importados do lead</div>
+          <div class="mt-1 text-sm text-slate-600">A proposta foi iniciada a partir do pipeline comercial. Os campos abaixo foram preenchidos automaticamente para evitar redigitação.</div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <?php if (!empty($leadPrefill['retry_url'])): ?>
+            <a class="tr-btn" href="<?= View::e((string)$leadPrefill['retry_url']) ?>">Tentar novamente</a>
+          <?php endif; ?>
+          <?php if (!empty($leadPrefill['back_url'])): ?>
+            <a class="tr-btn" href="<?= View::e((string)$leadPrefill['back_url']) ?>">Voltar ao lead</a>
+          <?php endif; ?>
+        </div>
+      </div>
+
+      <?php if ($leadSummary !== null): ?>
+        <div class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.4fr),minmax(0,1fr)]">
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div><div class="text-xs uppercase tracking-wide text-slate-400">Lead</div><div class="mt-1 text-sm font-medium text-slate-800"><?= View::e((string)($leadSummary['company'] ?? '')) ?></div></div>
+              <div><div class="text-xs uppercase tracking-wide text-slate-400">Contato</div><div class="mt-1 text-sm font-medium text-slate-800"><?= View::e((string)($leadSummary['contact'] ?? '')) ?></div></div>
+              <div><div class="text-xs uppercase tracking-wide text-slate-400">Documento</div><div class="mt-1 text-sm font-medium text-slate-800"><?= View::e((string)($leadSummary['document'] ?? '')) ?></div></div>
+              <div><div class="text-xs uppercase tracking-wide text-slate-400">Cliente base</div><div class="mt-1 text-sm font-medium text-slate-800">#<?= (int)($leadSummary['client_id'] ?? 0) ?></div></div>
+              <div><div class="text-xs uppercase tracking-wide text-slate-400">E-mail</div><div class="mt-1 text-sm font-medium text-slate-800"><?= View::e((string)($leadSummary['email'] ?? '')) ?></div></div>
+              <div><div class="text-xs uppercase tracking-wide text-slate-400">Telefone</div><div class="mt-1 text-sm font-medium text-slate-800"><?= View::e((string)($leadSummary['phone'] ?? '')) ?></div></div>
+              <div><div class="text-xs uppercase tracking-wide text-slate-400">Segmento</div><div class="mt-1 text-sm font-medium text-slate-800"><?= View::e((string)($leadSummary['segment'] ?? '')) ?></div></div>
+              <div><div class="text-xs uppercase tracking-wide text-slate-400">Origem</div><div class="mt-1 text-sm font-medium text-slate-800"><?= View::e((string)($leadSummary['source'] ?? '')) ?></div></div>
+              <div class="md:col-span-2"><div class="text-xs uppercase tracking-wide text-slate-400">Endereço</div><div class="mt-1 text-sm font-medium text-slate-800"><?= View::e((string)($leadSummary['address'] ?? '')) ?></div></div>
+              <?php if (!empty($leadSummary['notes'])): ?>
+                <div class="md:col-span-2"><div class="text-xs uppercase tracking-wide text-slate-400">Necessidades / contexto comercial</div><div class="mt-1 text-sm text-slate-700 whitespace-pre-wrap"><?= View::e((string)$leadSummary['notes']) ?></div></div>
+              <?php endif; ?>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 gap-4">
+            <div class="rounded-2xl border border-slate-200 p-4">
+              <div class="text-sm font-semibold text-slate-900">Histórico do funil</div>
+              <div class="mt-3 space-y-3">
+                <?php foreach (($leadSummary['history'] ?? []) as $row): ?>
+                  <div class="rounded-xl bg-slate-50 p-3">
+                    <div class="text-sm font-medium text-slate-800"><?= View::e((string)($row['title'] ?? '')) ?></div>
+                    <div class="text-xs text-slate-500 mt-1"><?= View::e((string)($row['meta'] ?? '')) ?></div>
+                    <?php if (!empty($row['detail'])): ?><div class="text-sm text-slate-700 mt-2"><?= View::e((string)$row['detail']) ?></div><?php endif; ?>
+                  </div>
+                <?php endforeach; ?>
+              </div>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200 p-4">
+              <div class="text-sm font-semibold text-slate-900">Interações recentes</div>
+              <div class="mt-3 space-y-3">
+                <?php foreach (($leadSummary['interactions'] ?? []) as $row): ?>
+                  <div class="rounded-xl bg-slate-50 p-3">
+                    <div class="text-sm font-medium text-slate-800"><?= View::e((string)($row['title'] ?? '')) ?></div>
+                    <div class="text-xs text-slate-500 mt-1"><?= View::e((string)($row['meta'] ?? '')) ?></div>
+                    <?php if (!empty($row['detail'])): ?><div class="text-sm text-slate-700 mt-2 whitespace-pre-wrap"><?= View::e((string)$row['detail']) ?></div><?php endif; ?>
+                  </div>
+                <?php endforeach; ?>
+              </div>
+            </div>
+          </div>
+        </div>
+      <?php endif; ?>
+    </div>
+  <?php endif; ?>
 
   <div class="tr-card p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
     <div>
@@ -431,6 +505,8 @@ if (!$isEdit && count($milestones) === 0) {
 
   const isEdit = <?= $isEdit ? 'true' : 'false' ?>;
   const basePath = <?= json_encode((string)$base, JSON_UNESCAPED_UNICODE) ?>;
+  const toastType = <?= json_encode((string)($toastType ?? ''), JSON_UNESCAPED_UNICODE) ?>;
+  const toastMessage = <?= json_encode((string)($toastMessage ?? ''), JSON_UNESCAPED_UNICODE) ?>;
 
   const parseNumber = (v) => {
     if (typeof v !== 'string') return 0;
@@ -456,6 +532,10 @@ if (!$isEdit && count($milestones) === 0) {
     const [y,m,d] = dateStr.split('-');
     return `${d}/${m}/${y}`;
   };
+
+  if (toastType && toastMessage && typeof window.trToast === 'function') {
+    window.trToast(toastType, toastMessage);
+  }
 
   const recalc = () => {
     let subtotal = 0;

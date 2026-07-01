@@ -9,6 +9,8 @@ use App\Controllers\CompanyProfileApiController;
 use App\Controllers\CompanyProfileController;
 use App\Controllers\DashboardController;
 use App\Controllers\InstallController;
+use App\Controllers\LeadApiController;
+use App\Controllers\LeadController;
 use App\Controllers\PaymentMethodController;
 use App\Controllers\ProposalController;
 use App\Controllers\ProjectController;
@@ -98,6 +100,13 @@ return static function (Router $router, array $mw): void {
     $router->post('/clientes/{id}/excluir', [new ClientController(), 'destroy'], [$auth, $csrf]);
     $router->post('/clientes/{id}/interacoes', [new ClientController(), 'addInteraction'], [$auth, $csrf]);
 
+    $router->get('/leads', [new LeadController(), 'index'], [$auth, $pm]);
+    $router->get('/leads/novo', [new LeadController(), 'create'], [$auth, $pm]);
+    $router->post('/leads', [new LeadController(), 'store'], [$auth, $pm, $csrf]);
+    $router->get('/leads/{id}/editar', [new LeadController(), 'edit'], [$auth, $pm]);
+    $router->post('/leads/{id}', [new LeadController(), 'update'], [$auth, $pm, $csrf]);
+    $router->post('/leads/{id}/interacoes', [new LeadController(), 'addInteraction'], [$auth, $pm, $csrf]);
+
     $router->get('/propostas', [new ProposalController(), 'index'], [$auth]);
     $router->get('/propostas/nova', [new ProposalController(), 'create'], [$auth]);
     $router->post('/propostas', [new ProposalController(), 'store'], [$auth, $csrf]);
@@ -173,6 +182,11 @@ return static function (Router $router, array $mw): void {
     $router->post('/api/proposals/{proposalId}/convert', [new ProjectApiController(), 'convertFromProposal'], [$auth, $pm, $csrf]);
     $router->post('/api/projects/{id}/recalc', [new ProjectApiController(), 'recalcProgress'], [$auth, $pm, $csrf]);
     $router->post('/api/projects/{id}/tasks/{taskId}/status', [new ProjectApiController(), 'updateTaskStatus'], [$auth, $pm, $csrf]);
+
+    $router->get('/api/leads/kanban', [new LeadApiController(), 'kanban'], [$auth, $pm]);
+    $router->get('/api/leads/{id}', [new LeadApiController(), 'show'], [$auth, $pm]);
+    $router->post('/api/leads/{id}/stage', [new LeadApiController(), 'move'], [$auth, $pm, $csrf]);
+    $router->post('/api/leads/{id}/convert', [new LeadApiController(), 'convert'], [$auth, $pm, $csrf]);
 
     $router->get('/api/projects/{id}/installments', [new FinanceApiController(), 'listProjectInstallments'], [$auth, $finance]);
     $router->get('/api/installments/{id}/payments', [new FinanceApiController(), 'listPayments'], [$auth, $finance]);

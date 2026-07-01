@@ -8,12 +8,14 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Core\View;
 use App\Repositories\ClientRepository;
+use App\Repositories\LeadInteractionRepository;
 use App\Repositories\PaymentMethodRepository;
 use App\Repositories\ProposalBrandingRepository;
 use App\Repositories\ProposalDocumentRepository;
 use App\Repositories\ProposalRepository;
 use App\Repositories\ProjectRepository;
 use App\Repositories\ServiceRepository;
+use App\Services\LeadProposalPrefillService;
 use App\Services\ProposalPdfGenerator;
 use App\Services\ProposalService;
 use App\Services\CompanyProfileService;
@@ -37,15 +39,20 @@ final class ProposalController
         $clients = (new ClientRepository())->all();
         $paymentMethods = (new PaymentMethodRepository())->active();
         $services = (new ServiceRepository())->activeList(true);
+        $prefill = $this->resolveLeadPrefill($request);
         View::render('proposals/form', [
             'csrf' => Csrf::token(),
             'base' => $request->basePath(),
             'clients' => $clients,
             'paymentMethods' => $paymentMethods,
             'services' => $services,
-            'proposal' => null,
-            'items' => [],
-            'milestones' => [],
+            'proposal' => $prefill['proposal'] ?? null,
+            'items' => $prefill['items'] ?? [],
+            'milestones' => $prefill['milestones'] ?? [],
+            'leadPrefill' => $prefill['leadPrefill'] ?? null,
+            'toastType' => $prefill['toastType'] ?? '',
+            'toastMessage' => $prefill['toastMessage'] ?? '',
+            'error' => $prefill['error'] ?? null,
         ]);
     }
 
@@ -57,6 +64,7 @@ final class ProposalController
             $clients = (new ClientRepository())->all();
             $paymentMethods = (new PaymentMethodRepository())->active();
             $servicesList = (new ServiceRepository())->activeList(true);
+            $leadPrefill = $this->resolveLeadPrefillFromPost($request);
             View::render('proposals/form', [
                 'csrf' => Csrf::token(),
                 'base' => $request->basePath(),
@@ -66,12 +74,25 @@ final class ProposalController
                 'proposal' => $request->allPost(),
                 'items' => $service->itemsFromRequest($request),
                 'milestones' => $service->milestonesFromRequest($request),
+                'leadPrefill' => $leadPrefill,
                 'error' => 'Preencha cliente, título, forma de pagamento e ao menos 1 serviço válido.',
             ]);
             return;
         }
 
         $id = (new ProposalRepository())->create($payload);
+        $sourceLeadId = (int) $request->input('source_lead_id', 0);
+        if ($sourceLeadId > 0) {
+            try {
+                (new LeadInteractionRepository())->create(
+                    $sourceLeadId,
+                    'nota',
+                    'Proposta #' . $id . ' iniciada a partir do pipeline comercial.',
+                    (int) Session::get('user_id', 0)
+                );
+            } catch (\Throwable) {
+            }
+        }
         Response::redirect($request->basePath() . '/propostas/' . $id);
     }
 
@@ -217,6 +238,57 @@ final class ProposalController
         (new ProposalService())->convertToProject($id, $actorId);
         Response::redirect($request->basePath() . '/propostas/' . $id);
     }
+
+    private function resolveLeadPrefill(Request $request): array
+    {
+        $leadId = (int) $request->input('lead_id', 0);
+        if ($leadId <= 0) {
+            return [];
+        }
+
+        try {
+            $context = (new LeadProposalPrefillService())->build($leadId, $request->basePath());
+            return [
+                'proposal' => $context['proposal'],
+                'items' => $context['items'],
+                'milestones' => $context['milestones'],
+                'leadPrefill' => $context,
+                'toastType' => 'info',
+                'toastMessage' => 'Dados do lead carregados automaticamente para a proposta.',
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'proposal' => ['source_lead_id' => $leadId],
+                'items' => [],
+                'milestones' => [],
+                'leadPrefill' => [
+                    'retry_url' => $request->basePath() . '/propostas/nova?lead_id=' . $leadId,
+                    'back_url' => $request->basePath() . '/leads/' . $leadId . '/editar',
+                ],
+                'toastType' => 'error',
+                'toastMessage' => 'Nao foi possivel carregar automaticamente os dados do lead.',
+                'error' => $e->getMessage() . ' Clique em "Tentar novamente" para recarregar os dados do lead.',
+            ];
+        }
+    }
+
+    private function resolveLeadPrefillFromPost(Request $request): ?array
+    {
+        $leadId = (int) $request->input('source_lead_id', 0);
+        if ($leadId <= 0) {
+            return null;
+        }
+
+        try {
+            return (new LeadProposalPrefillService())->build($leadId, $request->basePath());
+        } catch (\Throwable) {
+            return [
+                'retry_url' => $request->basePath() . '/propostas/nova?lead_id=' . $leadId,
+                'back_url' => $request->basePath() . '/leads/' . $leadId . '/editar',
+            ];
+        }
+    }
+
 
     public function pdf(Request $request, array $params): void
     {
