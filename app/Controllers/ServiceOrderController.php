@@ -37,6 +37,7 @@ final class ServiceOrderController
             'users' => (new UserListRepository())->all(),
             'statusOptions' => ServiceOrderStatus::all(),
             'typeOptions' => ServiceOrderType::all(),
+            'canManage' => $this->canManage(),
             'ok' => trim((string) $request->input('ok', '')),
             'error' => trim((string) $request->input('error', '')),
         ]);
@@ -120,6 +121,12 @@ final class ServiceOrderController
             'toastMessage' => $toastMessage,
             'error' => '',
         ]);
+    }
+
+    public function show(Request $request, array $params): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        Response::redirect($request->basePath() . '/ordens-servico/' . $id . '/editar');
     }
 
     public function update(Request $request, array $params): void
@@ -272,19 +279,50 @@ final class ServiceOrderController
             'users' => (new UserListRepository())->all(),
             'statusOptions' => ServiceOrderStatus::all(),
             'typeOptions' => ServiceOrderType::all(),
+            'canManage' => $this->canManage(),
         ]);
+    }
+
+    private function canManage(): bool
+    {
+        if ((int) Session::get('is_admin', 0) === 1) {
+            return true;
+        }
+
+        return trim((string) Session::get('role', '')) === 'pm';
     }
 
     private function filters(Request $request): array
     {
+        $status = trim((string) $request->input('status', ''));
+        if ($status !== '' && !ServiceOrderStatus::isValid($status)) {
+            $status = '';
+        }
+
+        $type = trim((string) $request->input('type', ''));
+        if ($type !== '' && !ServiceOrderType::isValid($type)) {
+            $type = '';
+        }
+
+        $billable = trim((string) $request->input('billable', ''));
+        if (!in_array($billable, ['', '0', '1'], true)) {
+            $billable = '';
+        }
+
+        $sort = trim((string) $request->input('sort', 'opened_desc'));
+        $allowedSorts = ['opened_desc', 'opened_asc', 'due_asc', 'due_desc', 'client_asc', 'status_asc'];
+        if (!in_array($sort, $allowedSorts, true)) {
+            $sort = 'opened_desc';
+        }
+
         return [
             'q' => trim((string) $request->input('q', '')),
-            'status' => trim((string) $request->input('status', '')),
-            'type' => trim((string) $request->input('type', '')),
+            'status' => $status,
+            'type' => $type,
             'client_id' => (int) $request->input('client_id', 0),
             'assigned_user_id' => (int) $request->input('assigned_user_id', 0),
-            'billable' => trim((string) $request->input('billable', '')),
-            'sort' => trim((string) $request->input('sort', 'opened_desc')),
+            'billable' => $billable,
+            'sort' => $sort,
         ];
     }
 

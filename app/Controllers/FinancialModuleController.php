@@ -348,16 +348,19 @@ final class FinancialModuleController
             $branding = [];
         }
         $y = PdfStandardTheme::renderHeaderMinimal($pdf, $branding, 595, 842, 40, 54, 4, 28, 200, 32);
-        $pdf->setFont('F2', 14);
-        $pdf->setFillColor(26, 26, 26);
-        $pdf->text(40, $y, 'Relatório Financeiro Enterprise');
+        $pdf->setFillColor(41, 50, 65);
+        $pdf->rect(40, $y - 94, 515, 94, 'F');
+        $pdf->setFillColor(255, 255, 255);
+        $pdf->setFont('F2', 18);
+        $pdf->text(58, $y - 28, 'Relatório Financeiro Enterprise');
         $pdf->setFont('F1', 11);
-        $y -= 22;
+        $pdf->text(58, $y - 46, 'Resumo corporativo das contas a receber com o mesmo padrão visual institucional dos demais PDFs.');
+        $y -= 114;
         foreach (array_slice((array) ($reports['receivables'] ?? []), 0, 30) as $row) {
             if ($y < 70) {
                 $pdf->addPage();
                 $y = PdfStandardTheme::renderHeaderMinimal($pdf, $branding, 595, 842, 40, 54, 4, 28, 200, 32);
-                $pdf->setFillColor(26, 26, 26);
+                $pdf->setFillColor(41, 50, 65);
                 $pdf->setFont('F2', 12);
                 $pdf->text(40, $y, 'Relatório Financeiro Enterprise (continuação)');
                 $y -= 22;
@@ -703,6 +706,10 @@ final class FinancialModuleController
             'company_name' => $companyName !== '' ? $companyName : 'TRAXTER',
             'logo_path' => $logoPath,
             'logo_mime' => $logoMime,
+            'logo_light_path' => (string) ($branding['logo_light_path'] ?? ''),
+            'logo_light_mime' => (string) ($branding['logo_light_mime'] ?? ''),
+            'logo_dark_path' => (string) ($branding['logo_dark_path'] ?? ''),
+            'logo_dark_mime' => (string) ($branding['logo_dark_mime'] ?? ''),
             'logo_original_name' => $logoOriginalName,
             'logo_preview_src' => $this->inlineImageSrc($logoPath, $logoMime),
             'company_cnpj' => (string) ($branding['company_cnpj'] ?? ''),

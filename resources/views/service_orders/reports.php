@@ -9,6 +9,7 @@ $filters = is_array($filters ?? null) ? $filters : [];
 $report = is_array($report ?? null) ? $report : [];
 $rows = is_array($report['rows'] ?? null) ? $report['rows'] : [];
 $totals = is_array($report['totals'] ?? null) ? $report['totals'] : [];
+$canManage = ($canManage ?? false) === true;
 ?>
 
 <div class="flex items-start justify-between gap-4">
@@ -122,18 +123,26 @@ $totals = is_array($report['totals'] ?? null) ? $report['totals'] : [];
           <th class="text-left py-3 px-4">Aberta em</th>
           <th class="text-left py-3 px-4">Conclusão</th>
           <th class="text-left py-3 px-4">Valor final</th>
+          <th class="text-left py-3 px-4">Ações</th>
         </tr>
       </thead>
       <tbody>
         <?php if (count($rows) === 0): ?>
-          <tr><td class="px-4 py-6 text-slate-600" colspan="9">Nenhuma OS encontrada para os filtros informados.</td></tr>
+          <tr><td class="px-4 py-6 text-slate-600" colspan="10">Nenhuma OS encontrada para os filtros informados.</td></tr>
         <?php endif; ?>
         <?php foreach ($rows as $row): ?>
-          <?php $status = (string) ($row['status'] ?? ''); ?>
+          <?php
+            $id = (int) ($row['id'] ?? 0);
+            $status = (string) ($row['status'] ?? '');
+            $clientLabel = trim((string) ($row['client_company'] ?? '')) !== '' ? (string) $row['client_company'] : (trim((string) ($row['client_name'] ?? '')) !== '' ? (string) $row['client_name'] : 'Cliente não vinculado');
+            $receivableId = (int) ($row['financial_receivable_id'] ?? 0);
+          ?>
           <tr class="border-t">
-            <td class="px-4 py-3 font-semibold"><?= View::e((string) ($row['numero_os'] ?? '')) ?></td>
+            <td class="px-4 py-3 font-semibold">
+              <a class="text-traxterAccent" href="<?= View::e($base . '/ordens-servico/' . $id) ?>"><?= View::e((string) ($row['numero_os'] ?? '')) ?></a>
+            </td>
             <td class="px-4 py-3"><?= View::e((string) ($row['service_name'] ?? '')) ?></td>
-            <td class="px-4 py-3"><?= View::e((string) (($row['client_company'] ?? '') !== '' ? $row['client_company'] : ($row['client_name'] ?? ''))) ?></td>
+            <td class="px-4 py-3"><?= View::e($clientLabel) ?></td>
             <td class="px-4 py-3"><?= View::e((string) ($row['assigned_user_name'] ?? 'Não definido')) ?></td>
             <td class="px-4 py-3"><?= View::e(ServiceOrderType::label((string) ($row['type'] ?? ''))) ?></td>
             <td class="px-4 py-3">
@@ -142,6 +151,7 @@ $totals = is_array($report['totals'] ?? null) ? $report['totals'] : [];
             <td class="px-4 py-3"><?= View::e((string) ($row['opened_at'] ?? '')) ?></td>
             <td class="px-4 py-3"><?= View::e((string) ($row['completed_at'] ?? '—')) ?></td>
             <td class="px-4 py-3"><?= (int) ($row['billable'] ?? 0) === 1 ? 'R$ ' . number_format((float) ($row['final_amount'] ?? 0), 2, ',', '.') : 'Não faturável' ?></td>
+            <td class="px-4 py-3"><?php require __DIR__ . '/_actions.php'; ?></td>
           </tr>
         <?php endforeach; ?>
       </tbody>

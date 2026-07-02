@@ -16,7 +16,7 @@ final class ServiceOrderRepository implements ServiceOrderRepositoryContract
         [$whereSql, $params] = $this->buildFilters($filters);
 
         $baseSql = " FROM servicos_avulsos so
-                     INNER JOIN clients c ON c.id = so.client_id
+                     LEFT JOIN clients c ON c.id = so.client_id
                      LEFT JOIN users u ON u.id = so.assigned_user_id
                      LEFT JOIN services s ON s.id = so.base_service_id
                      WHERE so.deleted_at IS NULL {$whereSql}";
@@ -69,7 +69,7 @@ final class ServiceOrderRepository implements ServiceOrderRepositoryContract
                        far.title AS receivable_title,
                        far.status AS receivable_status
                 FROM servicos_avulsos so
-                INNER JOIN clients c ON c.id = so.client_id
+                LEFT JOIN clients c ON c.id = so.client_id
                 LEFT JOIN users u ON u.id = so.assigned_user_id
                 LEFT JOIN services s ON s.id = so.base_service_id
                 LEFT JOIN financial_accounts_receivable far ON far.id = so.financial_receivable_id

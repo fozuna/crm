@@ -13,6 +13,7 @@ $pages = (int) ($data['pages'] ?? 1);
 $total = (int) ($data['total'] ?? 0);
 $ok = trim((string) ($ok ?? ''));
 $error = trim((string) ($error ?? ''));
+$canManage = ($canManage ?? false) === true;
 
 $linkWith = static function (array $baseParams, array $override): string {
     $params = array_merge($baseParams, $override);
@@ -157,11 +158,12 @@ $baseParams = [
             $status = (string) ($row['status'] ?? '');
             $type = (string) ($row['type'] ?? '');
             $badgeClass = ServiceOrderStatus::badgeClass($status);
-            $clientLabel = trim((string) ($row['client_company'] ?? '')) !== '' ? (string) $row['client_company'] : (string) ($row['client_name'] ?? '');
+            $clientLabel = trim((string) ($row['client_company'] ?? '')) !== '' ? (string) $row['client_company'] : (trim((string) ($row['client_name'] ?? '')) !== '' ? (string) $row['client_name'] : 'Cliente não vinculado');
+            $receivableId = (int) ($row['financial_receivable_id'] ?? 0);
           ?>
           <tr class="border-t">
             <td class="px-4 py-3">
-              <div class="font-semibold"><?= View::e((string) ($row['numero_os'] ?? '')) ?></div>
+              <a class="font-semibold text-traxterAccent" href="<?= View::e($base . '/ordens-servico/' . $id) ?>"><?= View::e((string) ($row['numero_os'] ?? '')) ?></a>
               <div class="text-xs text-slate-500 mt-1"><?= View::e((string) ($row['opened_at'] ?? '')) ?></div>
             </td>
             <td class="px-4 py-3">
@@ -176,16 +178,7 @@ $baseParams = [
             </td>
             <td class="px-4 py-3"><?= (int) ($row['billable'] ?? 0) === 1 ? 'R$ ' . number_format((float) ($row['final_amount'] ?? 0), 2, ',', '.') : 'Não faturável' ?></td>
             <td class="px-4 py-3">
-              <div class="flex items-center gap-2">
-                <a class="tr-icon-btn" href="<?= View::e($base . '/ordens-servico/' . $id . '/editar') ?>" aria-label="Editar OS">
-                  <?= UI::icon('edit') ?>
-                  <span class="sr-only">Editar</span>
-                </a>
-                <a class="tr-icon-btn" href="<?= View::e($base . '/ordens-servico/' . $id . '/pdf') ?>" aria-label="PDF da OS" target="_blank" rel="noopener">
-                  <?= UI::icon('pdf') ?>
-                  <span class="sr-only">PDF</span>
-                </a>
-              </div>
+              <?php require __DIR__ . '/_actions.php'; ?>
             </td>
           </tr>
         <?php endforeach; ?>

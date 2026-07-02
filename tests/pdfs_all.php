@@ -6,7 +6,9 @@ require __DIR__ . '/../app/bootstrap.php';
 use App\Services\ContractPdfGenerator;
 use App\Services\FinancialReceiptPdfGenerator;
 use App\Services\FinancialReceivablePdfGenerator;
+use App\Services\PdfStandardTheme;
 use App\Services\ProposalPdfGenerator;
+use App\Services\ServiceOrderPdfGenerator;
 
 $failures = 0;
 $assert = static function (bool $ok, string $message) use (&$failures): void {
@@ -23,6 +25,8 @@ $branding = [
     'primary_color' => '#293241',
     'accent_color' => '#ee6c4d',
     'logo_path' => '',
+    'logo_light_path' => '',
+    'logo_dark_path' => '',
     'company_cnpj' => '30358115000113',
 ];
 
@@ -123,6 +127,67 @@ $footer = '';
 $pdfContract = (new ContractPdfGenerator())->build($branding, $contract, $body, $footer);
 $assert(str_contains($pdfContract, $contactPhone), 'Contrato: rodapé contém telefone');
 $assert(str_contains($pdfContract, $contactEmail), 'Contrato: rodapé contém e-mail');
+$assert(str_contains($pdfContract, 'Contrato'), 'Contrato: contém título principal');
+
+$serviceOrder = [
+    'numero_os' => 'OS-000001',
+    'service_name' => 'Ajuste de processo',
+    'client_name' => 'Cliente Teste LTDA',
+    'client_company' => 'Cliente Teste LTDA',
+    'contact_name' => 'Fabio',
+    'assigned_user_name' => 'Equipe Técnica',
+    'type' => 'suporte',
+    'status' => 'aberto',
+    'opened_at' => '2026-05-01 08:00:00',
+    'due_at' => '2026-05-03 18:00:00',
+    'completed_at' => '',
+    'estimated_hours' => 2.5,
+    'executed_hours' => 1.75,
+    'request_description' => '<p>Solicitação do cliente.</p>',
+    'executed_activities' => '<p>Atividade executada.</p>',
+    'technical_notes' => '<p>Observação técnica.</p>',
+    'billable' => 1,
+    'base_service_name' => 'Consultoria',
+    'base_amount' => 500.00,
+    'discount_amount' => 0.00,
+    'surcharge_amount' => 50.00,
+    'final_amount' => 550.00,
+    'financial_receivable_id' => 15,
+];
+$attachments = [
+    ['original_name' => 'anexo.pdf', 'file_extension' => 'pdf', 'file_size' => 10240, 'uploaded_by_name' => 'Equipe Técnica'],
+];
+$history = [
+    ['created_at' => '2026-05-01 08:00:00', 'message' => 'OS criada.', 'actor_name' => 'Equipe Técnica'],
+];
+$pdfOs = (new ServiceOrderPdfGenerator())->build($branding, $serviceOrder, $attachments, $history);
+$assert(str_contains($pdfOs, $contactPhone), 'OS: rodapé contém telefone');
+$assert(str_contains($pdfOs, $contactEmail), 'OS: rodapé contém e-mail');
+$assert(str_contains($pdfOs, 'OS-000001'), 'OS: contém número da ordem');
+$assert(str_contains($pdfOs, 'Hist'), 'OS: contém seção de histórico');
+
+$createPixel = static function (string $path): void {
+    $bytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO0pP1QAAAAASUVORK5CYII=');
+    file_put_contents($path, $bytes);
+};
+$lightLogo = tempnam(sys_get_temp_dir(), 'pdf_light_') . '.png';
+$darkLogo = tempnam(sys_get_temp_dir(), 'pdf_dark_') . '.png';
+@unlink(substr($lightLogo, 0, -4));
+@unlink(substr($darkLogo, 0, -4));
+$createPixel($lightLogo);
+$createPixel($darkLogo);
+
+$themeReflection = new ReflectionClass(PdfStandardTheme::class);
+$resolveLogo = $themeReflection->getMethod('resolveHeaderLogoPath');
+$resolveLogo->setAccessible(true);
+$selectedLogo = $resolveLogo->invoke(null, [
+    'logo_path' => $darkLogo,
+    'logo_light_path' => $lightLogo,
+    'logo_dark_path' => $darkLogo,
+], [41, 50, 65]);
+$assert($selectedLogo === $lightLogo, 'Tema PDF: fundo escuro utiliza logo clara automaticamente');
+
+@unlink($lightLogo);
+@unlink($darkLogo);
 
 exit($failures > 0 ? 1 : 0);
-

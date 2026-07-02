@@ -194,8 +194,19 @@ $validPayload = [
 $validation = $validator->validate($validPayload);
 $assert(($validation['ok'] ?? false) === true, 'Validador aceita OS não faturável válida');
 $assert(($validation['data']['request_description'] ?? '') === '<p>Solicitação com <strong>urgência</strong>.</p>', 'Validador mantém HTML permitido sanitizado');
+$billableValidation = $validator->validate(array_merge($validPayload, [
+    'billable' => '1',
+    'base_service_id' => '5',
+    'base_amount' => '120,00',
+    'discount_amount' => '15,00',
+    'surcharge_amount' => '20,00',
+]));
+$assert(($billableValidation['ok'] ?? false) === true, 'Validador aceita OS faturável com horas previstas válidas');
+$assert((float) ($billableValidation['data']['final_amount'] ?? 0) === 305.00, 'Validador calcula valor final com horas previstas, desconto e acréscimo');
 $assert(($validator->validate(array_merge($validPayload, ['type' => 'invalido']))['ok'] ?? true) === false, 'Validador rejeita tipo inválido');
-$assert(($validator->validate(array_merge($validPayload, ['billable' => '1', 'base_amount' => '0,00']))['ok'] ?? true) === false, 'Validador exige valor positivo para OS faturável');
+$assert(($validator->validate(array_merge($validPayload, ['billable' => '1', 'base_service_id' => '5', 'base_amount' => '0,00']))['ok'] ?? true) === false, 'Validador exige valor base positivo para OS faturável');
+$assert(($validator->validate(array_merge($validPayload, ['billable' => '1', 'base_service_id' => '5', 'estimated_hours' => '0']))['ok'] ?? true) === false, 'Validador exige horas previstas positivas para OS faturável');
+$assert(($validator->validate(array_merge($validPayload, ['billable' => '1', 'base_service_id' => '5', 'discount_amount' => '-5,00']))['ok'] ?? true) === false, 'Validador rejeita desconto negativo');
 
 $richText = new ServiceOrderRichText();
 $sanitized = $richText->sanitize('<p>Teste</p><script>alert(1)</script><a href="javascript:alert(1)">link</a>');
@@ -260,5 +271,7 @@ $pdf = (new ServiceOrderPdfGenerator())->build(
 $assert(str_starts_with($pdf, '%PDF-1.4'), 'PDF da OS é gerado em formato PDF');
 $assert(str_contains($pdf, 'Ordem de Serv') || str_contains($pdf, 'Ordem de Serviço'), 'PDF da OS contém título principal');
 $assert(str_contains($pdf, 'OS-000001'), 'PDF da OS contém número da ordem');
+$assert(str_contains($pdf, 'Resumo financ'), 'PDF da OS contém quadro financeiro estruturado');
+$assert(str_contains($pdf, 'Hist'), 'PDF da OS contém tabela de histórico');
 
 return $failures;

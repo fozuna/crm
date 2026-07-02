@@ -68,6 +68,7 @@ return static function (Router $router, array $mw): void {
     $router->get('/ordens-servico/relatorios', [new ServiceOrderController(), 'reports'], [$auth, $auditor]);
     $router->get('/ordens-servico/nova', [new ServiceOrderController(), 'create'], [$auth, $pm]);
     $router->post('/ordens-servico', [new ServiceOrderController(), 'store'], [$auth, $pm, $csrf]);
+    $router->get('/ordens-servico/{id}', [new ServiceOrderController(), 'show'], [$auth, $auditor]);
     $router->get('/ordens-servico/{id}/editar', [new ServiceOrderController(), 'edit'], [$auth, $auditor]);
     $router->post('/ordens-servico/{id}', [new ServiceOrderController(), 'update'], [$auth, $pm, $csrf]);
     $router->post('/ordens-servico/{id}/status', [new ServiceOrderController(), 'updateStatus'], [$auth, $pm, $csrf]);

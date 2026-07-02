@@ -32,8 +32,10 @@ final class FinancialReceiptPdfGenerator
     {
         $this->branding = $branding;
         $this->companyName = trim((string) ($branding['company_name'] ?? 'TRAXTER')) ?: 'TRAXTER';
-        $this->logoPath = trim((string) ($branding['logo_path'] ?? ''));
-        $this->logoMime = trim((string) ($branding['logo_mime'] ?? ''));
+        $preferLight = trim((string) ($branding['logo_light_path'] ?? ''));
+        $preferDark = trim((string) ($branding['logo_dark_path'] ?? ''));
+        $this->logoPath = $preferLight !== '' ? $preferLight : trim((string) ($branding['logo_path'] ?? ($preferDark !== '' ? $preferDark : '')));
+        $this->logoMime = $preferLight !== '' ? trim((string) ($branding['logo_light_mime'] ?? '')) : trim((string) ($branding['logo_mime'] ?? $branding['logo_dark_mime'] ?? ''));
         $this->primary = $this->hexToRgb((string) ($branding['primary_color'] ?? '#0f172a'));
         $this->accent = $this->hexToRgb((string) ($branding['accent_color'] ?? '#0ea5a4'));
         $this->prepareHeaderLogo();
@@ -79,24 +81,29 @@ final class FinancialReceiptPdfGenerator
 
     private function renderTitleBlock(ProfessionalPdf $pdf, int $y, array $receivable, array $receipt): int
     {
-        $yTop = $y;
-        $blockH = 56;
-        $y = $yTop;
+        $top = $y;
+        $blockH = 94;
+        $rightBoxW = 150;
+        $rightX = $this->contentX + $this->contentW - $rightBoxW - 18;
 
         $pdf->setFillColor($this->primary[0], $this->primary[1], $this->primary[2]);
-        $pdf->setFont('F2', 16);
-        $pdf->text($this->contentX, $y - 18, 'RECIBO DE PAGAMENTO');
-        $pdf->setFillColor($this->muted[0], $this->muted[1], $this->muted[2]);
-        $pdf->setFont('F1', 10);
-        $pdf->text($this->contentX, $y - 34, 'Documento financeiro emitido para comprovacao formal do recebimento.');
+        $pdf->rect($this->contentX, $top - $blockH, $this->contentW, $blockH, 'F');
 
-        $pdf->setFillColor($this->body[0], $this->body[1], $this->body[2]);
-        $pdf->setFont('F1', 10);
-        $pdf->text(392, $y - 14, 'Recibo #' . (int) ($receipt['id'] ?? 0));
-        $pdf->text(392, $y - 28, 'Conta #' . (int) ($receivable['id'] ?? 0));
-        $pdf->text(392, $y - 42, 'Data: ' . $this->formatDate((string) ($receipt['payment_date'] ?? '')));
+        $pdf->setFillColor(255, 255, 255);
+        $pdf->setFont('F2', 18);
+        $pdf->text($this->contentX + 18, $top - 28, 'Recibo de Pagamento');
+        $pdf->setFont('F1', 11);
+        $pdf->text($this->contentX + 18, $top - 46, 'Documento financeiro emitido para comprovação formal do recebimento.');
 
-        return $yTop - $blockH - 10;
+        $pdf->setStrokeColor(255, 255, 255);
+        $pdf->rect($rightX, $top - 72, $rightBoxW, 50, 'S');
+        $pdf->setFont('F2', 11);
+        $pdf->text($rightX + 12, $top - 42, 'Recibo #' . (int) ($receipt['id'] ?? 0));
+        $pdf->setFont('F1', 10);
+        $pdf->text($rightX + 12, $top - 58, 'Conta #' . (int) ($receivable['id'] ?? 0));
+        $pdf->text($rightX + 12, $top - 72 + 12, 'Data: ' . $this->formatDate((string) ($receipt['payment_date'] ?? '')));
+
+        return $top - $blockH - 16;
     }
 
     private function renderClientService(ProfessionalPdf $pdf, int $y, array $receivable): int
@@ -164,15 +171,15 @@ final class FinancialReceiptPdfGenerator
     {
         $left = [
             ['Documento', (string) (($receivable['invoice_number'] ?? '') !== '' ? $receivable['invoice_number'] : ('Conta #' . (int) ($receivable['id'] ?? 0)))],
-            ['Metodo', (string) ($receipt['payment_method'] ?? 'Nao informado')],
-            ['Referencia transacao', (string) ($receipt['transaction_reference'] ?? '—')],
+            ['Método', (string) ($receipt['payment_method'] ?? 'Não informado')],
+            ['Referência transação', (string) ($receipt['transaction_reference'] ?? '—')],
             ['Banco', trim((string) (($receivable['bank_name'] ?? '') . ' ' . ($receivable['account_name'] ?? ''))) ?: '—'],
         ];
         $right = [
             ['Data do pagamento', $this->formatDate((string) ($receipt['payment_date'] ?? ''))],
             ['Projeto', (string) ($receivable['project_title'] ?? '—')],
-            ['Competencia', $this->formatDate((string) ($receivable['competence_date'] ?? ''))],
-            ['Referencia interna', (string) ($receivable['external_reference'] ?? '—')],
+            ['Competência', $this->formatDate((string) ($receivable['competence_date'] ?? ''))],
+            ['Referência interna', (string) ($receivable['external_reference'] ?? '—')],
         ];
 
         $boxH = 132;
@@ -197,12 +204,12 @@ final class FinancialReceiptPdfGenerator
     {
         $netAmount = (float) (($receipt['amount_received'] ?? 0) + ($receipt['interest_amount'] ?? 0) + ($receipt['fine_amount'] ?? 0) - ($receipt['discount_amount'] ?? 0));
         $statement = 'Recebemos de ' . $this->safeInlineName((string) (($receivable['client_company'] ?? '') !== '' ? $receivable['client_company'] : ($receivable['client_name'] ?? 'cliente nao informado'))) .
-            ' a importancia de ' . $this->brl($netAmount) .
-            ', referente ao servico "' . $this->serviceDescription($receivable) . '".';
+            ' a importância de ' . $this->brl($netAmount) .
+            ', referente ao serviço "' . $this->serviceDescription($receivable) . '".';
         $observation = trim((string) ($receipt['observation'] ?? ''));
 
         $statementLines = $this->wrap($statement, 92);
-        $observationLines = $observation !== '' ? $this->wrap('Observacoes: ' . $observation, 92) : [];
+        $observationLines = $observation !== '' ? $this->wrap('Observações: ' . $observation, 92) : [];
         $linesCount = count($statementLines) + max(1, count($observationLines));
         $boxH = 72 + ($linesCount * 14);
 
@@ -217,7 +224,7 @@ final class FinancialReceiptPdfGenerator
 
         $pdf->setFillColor($this->primary[0], $this->primary[1], $this->primary[2]);
         $pdf->setFont('F2', 12);
-        $pdf->text($this->contentX + 18, $y - 24, 'Declaracao de recebimento');
+        $pdf->text($this->contentX + 18, $y - 24, 'Declaração de recebimento');
 
         $pdf->setFillColor($this->body[0], $this->body[1], $this->body[2]);
         $pdf->setFont('F1', 11);
@@ -305,7 +312,7 @@ final class FinancialReceiptPdfGenerator
     {
         $date = trim($date);
         if ($date === '') {
-            return 'Nao informada';
+            return 'Não informada';
         }
 
         $time = strtotime($date);

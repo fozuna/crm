@@ -33,7 +33,7 @@ final class ServiceOrderValidator
             'surcharge_amount' => round(Money::parseBRL((string) ($payload['surcharge_amount'] ?? '0')), 2),
         ];
 
-        $data['final_amount'] = round($data['base_amount'] - $data['discount_amount'] + $data['surcharge_amount'], 2);
+        $data['final_amount'] = $this->calculateFinalAmount($data);
         $errors = [];
 
         if ($data['service_name'] === '' || mb_strlen($data['service_name']) > 190) {
@@ -69,7 +69,22 @@ final class ServiceOrderValidator
         if ($data['executed_hours'] !== null && $data['executed_hours'] < 0) {
             $errors['executed_hours'] = 'Horas executadas inválidas.';
         }
+        if ($data['base_amount'] < 0) {
+            $errors['base_amount'] = 'Valor base inválido.';
+        }
+        if ($data['discount_amount'] < 0) {
+            $errors['discount_amount'] = 'Desconto inválido.';
+        }
+        if ($data['surcharge_amount'] < 0) {
+            $errors['surcharge_amount'] = 'Acréscimo inválido.';
+        }
         if ($data['billable'] === 1) {
+            if ($data['estimated_hours'] === null || $data['estimated_hours'] <= 0) {
+                $errors['estimated_hours'] = 'Informe a quantidade de horas previstas para calcular a cobrança.';
+            }
+            if ($data['base_amount'] <= 0) {
+                $errors['base_amount'] = 'Informe um valor base maior que zero para a OS faturável.';
+            }
             if ($data['final_amount'] <= 0) {
                 $errors['final_amount'] = 'Serviços faturáveis precisam ter valor final maior que zero.';
             }
@@ -125,6 +140,16 @@ final class ServiceOrderValidator
             return null;
         }
         return round((float) str_replace(',', '.', $text), 2);
+    }
+
+    private function calculateFinalAmount(array $data): float
+    {
+        $estimatedHours = (float) ($data['estimated_hours'] ?? 0);
+        $baseAmount = (float) ($data['base_amount'] ?? 0);
+        $discountAmount = (float) ($data['discount_amount'] ?? 0);
+        $surchargeAmount = (float) ($data['surcharge_amount'] ?? 0);
+
+        return round(($estimatedHours * $baseAmount) - $discountAmount + $surchargeAmount, 2);
     }
 
     private function truthy(mixed $value): bool

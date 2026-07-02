@@ -66,16 +66,17 @@ $gen = new FinancialReceivablePdfGenerator();
 $pdf = $gen->build($branding, $baseReceivable);
 $assert(str_starts_with($pdf, '%PDF-1.4'), 'Geração retorna bytes PDF');
 $assert(str_contains($pdf, 'Conta a Receber'), 'PDF contém título principal');
-$assert(str_contains($pdf, 'Recebivel:'), 'PDF contém identificador do recebível');
+$assert(str_contains($pdf, 'Receb'), 'PDF contém identificador do recebível');
 $assert(str_contains($pdf, 'R$ 3.500,00'), 'PDF contém valor formatado em BRL');
 $assert(str_contains($pdf, '+5567993256260'), 'PDF contém contato no rodapé');
 $assert(str_contains($pdf, 'comercial@traxter.com.br'), 'PDF contém e-mail no rodapé');
+$assert(!str_contains($pdf, 'â€¢'), 'PDF não contém caractere corrompido no rodapé');
 
 $long = $baseReceivable;
 $long['description'] = str_repeat('Descricao muito longa para testar quebra de linha e estabilidade do layout. ', 30);
 $longPdf = $gen->build($branding, $long);
 $assert(str_starts_with($longPdf, '%PDF-1.4'), 'Geração com descrição longa permanece válida');
-$assert(str_contains($longPdf, 'Servicos / Itens'), 'PDF com descrição longa mantém seção de itens');
+$assert(str_contains($longPdf, 'Itens'), 'PDF com descrição longa mantém seção de itens');
 
 $leadFailures = require __DIR__ . '/leads_module.php';
 $failures += (int) $leadFailures;

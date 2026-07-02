@@ -10,6 +10,7 @@ final class ProfessionalPdf
     private string $fontKey = 'F1';
     private array $images = [];
     private array $imagePaths = [];
+    private array $temporaryFiles = [];
 
     public function addPage(): void
     {
@@ -187,23 +188,52 @@ final class ProfessionalPdf
         return $pdf;
     }
 
-    private function escape(string $text): string
+    public function __destruct()
     {
-        $converted = $text;
-
-        $isUtf8 = preg_match('//u', $text) === 1;
-        if ($isUtf8 && function_exists('iconv')) {
-            $tmp = @iconv('UTF-8', 'Windows-1252//TRANSLIT//IGNORE', $text);
-            if (is_string($tmp) && $tmp !== '') {
-                $converted = $tmp;
+        foreach ($this->temporaryFiles as $file) {
+            if (is_string($file) && $file !== '' && is_file($file)) {
+                @unlink($file);
             }
         }
+    }
+
+    private function escape(string $text): string
+    {
+        $converted = $this->encodeWinAnsi($text);
 
         $converted = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', ' ', (string) $converted);
         $converted = str_replace('\\', '\\\\', (string) $converted);
         $converted = str_replace('(', '\\(', (string) $converted);
         $converted = str_replace(')', '\\)', (string) $converted);
         return (string) $converted;
+    }
+
+    private function encodeWinAnsi(string $text): string
+    {
+        if ($text === '') {
+            return '';
+        }
+
+        $normalized = $text;
+        if (preg_match('//u', $normalized) !== 1) {
+            if (function_exists('mb_convert_encoding')) {
+                $candidate = @mb_convert_encoding($normalized, 'UTF-8', 'Windows-1252');
+                if (is_string($candidate) && $candidate !== '' && preg_match('//u', $candidate) === 1) {
+                    $normalized = $candidate;
+                }
+            } else {
+                $normalized = utf8_encode($normalized);
+            }
+        }
+
+        if (function_exists('iconv')) {
+            $tmp = @iconv('UTF-8', 'Windows-1252//TRANSLIT//IGNORE', $normalized);
+            if (is_string($tmp) && $tmp !== '') {
+                return $tmp;
+            }
+        }
+
+        return $normalized;
     }
 
     private function toJpeg(string $path): ?array
@@ -215,7 +245,12 @@ final class ProfessionalPdf
             return null;
         }
 
-        $bytes = @file_get_contents($path);
+        $sourcePath = $this->resolveRenderableImagePath($path);
+        if ($sourcePath === '') {
+            return null;
+        }
+
+        $bytes = @file_get_contents($sourcePath);
         if (!is_string($bytes) || $bytes === '') {
             return null;
         }
@@ -238,5 +273,66 @@ final class ProfessionalPdf
         }
 
         return ['data' => $jpeg, 'w' => $w, 'h' => $h];
+    }
+
+    private function resolveRenderableImagePath(string $path): string
+    {
+        $mime = '';
+        if (function_exists('mime_content_type')) {
+            $mime = (string) @mime_content_type($path);
+        }
+        if ($mime === '') {
+            $ext = strtolower((string) pathinfo($path, PATHINFO_EXTENSION));
+            $mime = match ($ext) {
+                'png' => 'image/png',
+                'jpg', 'jpeg' => 'image/jpeg',
+                'gif' => 'image/gif',
+                'webp' => 'image/webp',
+                'svg' => 'image/svg+xml',
+                default => '',
+            };
+        }
+
+        if ($mime === 'image/svg+xml') {
+            return $this->rasterizeSvgIfPossible($path);
+        }
+
+        return in_array($mime, ['image/png', 'image/jpeg', 'image/gif', 'image/webp'], true) ? $path : '';
+    }
+
+    private function rasterizeSvgIfPossible(string $path): string
+    {
+        if (!class_exists(\Imagick::class)) {
+            return '';
+        }
+
+        try {
+            $imagick = new \Imagick();
+            $imagick->setBackgroundColor(new \ImagickPixel('transparent'));
+            $imagick->readImage($path);
+            $imagick->setImageFormat('png32');
+
+            $tmp = tempnam(sys_get_temp_dir(), 'traxter_pdf_logo_');
+            if (!is_string($tmp) || $tmp === '') {
+                $imagick->clear();
+                $imagick->destroy();
+                return '';
+            }
+
+            $target = $tmp . '.png';
+            @unlink($tmp);
+            if (!$imagick->writeImage($target) || !is_file($target)) {
+                $imagick->clear();
+                $imagick->destroy();
+                return '';
+            }
+
+            $imagick->clear();
+            $imagick->destroy();
+            $this->temporaryFiles[] = $target;
+            return $target;
+        } catch (\Throwable) {
+            return '';
+        }
     }
 }

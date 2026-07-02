@@ -19,7 +19,7 @@ final class PdfStandardTheme
     ): int {
         $primary = self::hexToRgb((string) ($branding['primary_color'] ?? '#293241'));
         $accent = self::hexToRgb((string) ($branding['accent_color'] ?? '#ee6c4d'));
-        $logoPath = trim((string) ($branding['logo_path'] ?? ''));
+        $logoPath = self::resolveHeaderLogoPath($branding, $primary);
         $cnpj = self::formatCnpj((string) ($branding['company_cnpj'] ?? ''));
 
         $pdf->setFillColor($primary[0], $primary[1], $primary[2]);
@@ -73,11 +73,10 @@ final class PdfStandardTheme
         $pages = (array) $prop->getValue($pdf);
         $total = count($pages);
 
-        $encodedContact = self::toPdfEncoding($contactLine);
         $rg = sprintf('%.3f %.3f %.3f rg', $rgb[0] / 255, $rgb[1] / 255, $rgb[2] / 255);
 
         foreach ($pages as $i => $ops) {
-            $label = 'Página ' . ($i + 1) . ' de ' . $total . ' • ' . $encodedContact;
+            $label = 'Página ' . ($i + 1) . ' de ' . $total . ' • ' . $contactLine;
             $encoded = self::toPdfEncoding($label);
             $w = self::approxTextWidth($encoded, $fontSize);
             $x = (int) floor(($pageW / 2) - ($w / 2));
@@ -102,14 +101,18 @@ final class PdfStandardTheme
 
     private static function toPdfEncoding(string $text): string
     {
-        $isUtf8 = preg_match('//u', $text) === 1;
-        if ($isUtf8 && function_exists('iconv')) {
-            $tmp = @iconv('UTF-8', 'Windows-1252//TRANSLIT//IGNORE', $text);
+        if ($text === '') {
+            return '';
+        }
+
+        $normalized = self::normalizeUtf8($text);
+        if (function_exists('iconv')) {
+            $tmp = @iconv('UTF-8', 'Windows-1252//TRANSLIT//IGNORE', $normalized);
             if (is_string($tmp) && $tmp !== '') {
                 return $tmp;
             }
         }
-        return $text;
+        return $normalized;
     }
 
     private static function approxTextWidth(string $text, int $fontSize): float
@@ -153,6 +156,47 @@ final class PdfStandardTheme
         return [(int) floor($srcW * $scale), (int) floor($srcH * $scale)];
     }
 
+    private static function resolveHeaderLogoPath(array $branding, array $primary): string
+    {
+        $logoPath = trim((string) ($branding['logo_path'] ?? ''));
+        $logoLight = trim((string) ($branding['logo_light_path'] ?? ''));
+        $logoDark = trim((string) ($branding['logo_dark_path'] ?? ''));
+
+        $backgroundIsDark = self::bestTextOn($primary) === [255, 255, 255];
+        if ($backgroundIsDark && $logoLight !== '' && is_file($logoLight)) {
+            return $logoLight;
+        }
+        if (!$backgroundIsDark && $logoDark !== '' && is_file($logoDark)) {
+            return $logoDark;
+        }
+        if ($logoPath !== '' && is_file($logoPath)) {
+            return $logoPath;
+        }
+        if ($logoLight !== '' && is_file($logoLight)) {
+            return $logoLight;
+        }
+        if ($logoDark !== '' && is_file($logoDark)) {
+            return $logoDark;
+        }
+        return '';
+    }
+
+    private static function normalizeUtf8(string $text): string
+    {
+        if (preg_match('//u', $text) === 1) {
+            return $text;
+        }
+
+        if (function_exists('mb_convert_encoding')) {
+            $candidate = @mb_convert_encoding($text, 'UTF-8', 'Windows-1252');
+            if (is_string($candidate) && $candidate !== '' && preg_match('//u', $candidate) === 1) {
+                return $candidate;
+            }
+        }
+
+        return utf8_encode($text);
+    }
+
     private static function hexToRgb(string $hex): array
     {
         $hex = ltrim(trim($hex), '#');
@@ -165,4 +209,3 @@ final class PdfStandardTheme
         return [hexdec(substr($hex, 0, 2)), hexdec(substr($hex, 2, 2)), hexdec(substr($hex, 4, 2))];
     }
 }
-

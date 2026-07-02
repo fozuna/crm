@@ -8,6 +8,7 @@ final class ProposalPdfGenerator
     private string $contactLine = '+5567993256260 • comercial@traxter.com.br';
     private string $company = 'TRAXTER.';
     private string $logoPath = '';
+    private array $branding = [];
     private array $primary = [41, 50, 65];
     private array $accent = [238, 108, 77];
     private string $companyCnpj = '';
@@ -33,6 +34,7 @@ final class ProposalPdfGenerator
 
     public function build(array $branding, array $proposal, array $items, array $milestones, array $paymentOptions, int $selectedIndex): string
     {
+        $this->branding = $branding;
         $this->margin = (int) round(72);
         $this->x0 = $this->margin;
         $this->x1 = $this->pageW - $this->margin;
@@ -54,7 +56,7 @@ final class ProposalPdfGenerator
         $issueDate = $this->issueDate($proposal);
         $y = $this->yTop;
 
-        $y = $this->sectionTitle($pdf, $y, 'Proposta Comercial');
+        $y = $this->heroCard($pdf, $y, $proposal, $issueDate);
         $y = $this->initialDataBox($pdf, $y, (int) ($proposal['id'] ?? 0), (string) ($proposal['client_name'] ?? ''), $issueDate);
 
         $y = $this->sectionSeparator($pdf, $y);
@@ -98,6 +100,8 @@ final class ProposalPdfGenerator
                 'primary_color' => (string) ($this->rgbToHex($this->primary)),
                 'accent_color' => (string) ($this->rgbToHex($this->accent)),
                 'logo_path' => $this->logoPath,
+                'logo_light_path' => (string) ($this->branding['logo_light_path'] ?? ''),
+                'logo_dark_path' => (string) ($this->branding['logo_dark_path'] ?? ''),
                 'company_cnpj' => $this->companyCnpj,
             ],
             $this->pageW,
@@ -137,13 +141,33 @@ final class ProposalPdfGenerator
         $pdf->imageFromFile($x, $y, $this->footerLogoW, $this->footerLogoH, $logoPath);
     }
 
-    private function sectionTitle(ProfessionalPdf $pdf, int $y, string $title): int
+    private function heroCard(ProfessionalPdf $pdf, int $y, array $proposal, string $issueDate): int
     {
-        $y = $this->ensureBlock($pdf, $y, $this->sp(170));
-        $this->applyHeadingText($pdf);
-        $this->setFontScaled($pdf, 'F2', 12);
-        $pdf->text($this->x0, $y, $title);
-        return $y - $this->sp(24);
+        $y = $this->ensureBlock($pdf, $y, $this->sp(190));
+        $boxH = $this->sp(96);
+        $top = $y;
+        $rightBoxW = 148;
+        $rightX = $this->x1 - $rightBoxW;
+        $subtitleLines = $this->wrapPreserveNewlines('Documento comercial padronizado para apresentação, negociação e aprovação da solução proposta.', 54);
+
+        $pdf->setFillColor($this->primary[0], $this->primary[1], $this->primary[2]);
+        $pdf->rect($this->x0, $top - $boxH, $this->contentW, $boxH, 'F');
+        $pdf->setFillColor(255, 255, 255);
+        $this->setFontScaled($pdf, 'F2', 18);
+        $pdf->text($this->x0 + 18, $top - 28, 'Proposta Comercial');
+        $this->setFontScaled($pdf, 'F1', 11);
+        foreach (array_slice($subtitleLines, 0, 2) as $idx => $line) {
+            $pdf->text($this->x0 + 18, $top - 48 - ($idx * 13), $line);
+        }
+
+        $pdf->setStrokeColor(255, 255, 255);
+        $pdf->rect($rightX, $top - 72, $rightBoxW, 50, 'S');
+        $this->setFontScaled($pdf, 'F2', 11);
+        $pdf->text($rightX + 12, $top - 42, 'Proposta #' . (int) ($proposal['id'] ?? 0));
+        $this->setFontScaled($pdf, 'F1', 10);
+        $pdf->text($rightX + 12, $top - 58, 'Data: ' . $issueDate);
+
+        return $top - $boxH - 18;
     }
 
     private function initialDataBox(ProfessionalPdf $pdf, int $y, int $proposalId, string $clientName, string $issueDate): int

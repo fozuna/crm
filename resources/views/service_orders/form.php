@@ -144,11 +144,11 @@ $toastMessage = trim((string) ($toastMessage ?? ''));
           </div>
           <div>
             <label class="tr-label">Horas previstas</label>
-            <input name="estimated_hours" class="mt-1 tr-input" placeholder="0,00" value="<?= View::e((string) ($serviceOrder['estimated_hours'] ?? '')) ?>">
+            <input name="estimated_hours" id="estimatedHoursInput" class="mt-1 tr-input" inputmode="decimal" min="0" placeholder="0,00" value="<?= View::e((string) ($serviceOrder['estimated_hours'] ?? '')) ?>">
           </div>
           <div>
             <label class="tr-label">Horas executadas</label>
-            <input name="executed_hours" class="mt-1 tr-input" placeholder="0,00" value="<?= View::e((string) ($serviceOrder['executed_hours'] ?? '')) ?>">
+            <input name="executed_hours" id="executedHoursInput" class="mt-1 tr-input" inputmode="decimal" min="0" placeholder="0,00" value="<?= View::e((string) ($serviceOrder['executed_hours'] ?? '')) ?>">
           </div>
         </div>
       </div>
@@ -178,15 +178,15 @@ $toastMessage = trim((string) ($toastMessage ?? ''));
           </div>
           <div>
             <label class="tr-label">Valor base</label>
-            <input name="base_amount" id="baseAmountInput" class="mt-1 tr-input" value="<?= View::e((string) ($serviceOrder['base_amount'] ?? '0,00')) ?>">
+            <input name="base_amount" id="baseAmountInput" class="mt-1 tr-input" inputmode="decimal" min="0" value="<?= View::e((string) ($serviceOrder['base_amount'] ?? '0,00')) ?>">
           </div>
           <div>
             <label class="tr-label">Desconto</label>
-            <input name="discount_amount" id="discountAmountInput" class="mt-1 tr-input" value="<?= View::e((string) ($serviceOrder['discount_amount'] ?? '0,00')) ?>">
+            <input name="discount_amount" id="discountAmountInput" class="mt-1 tr-input" inputmode="decimal" min="0" value="<?= View::e((string) ($serviceOrder['discount_amount'] ?? '0,00')) ?>">
           </div>
           <div>
             <label class="tr-label">Acréscimo</label>
-            <input name="surcharge_amount" id="surchargeAmountInput" class="mt-1 tr-input" value="<?= View::e((string) ($serviceOrder['surcharge_amount'] ?? '0,00')) ?>">
+            <input name="surcharge_amount" id="surchargeAmountInput" class="mt-1 tr-input" inputmode="decimal" min="0" value="<?= View::e((string) ($serviceOrder['surcharge_amount'] ?? '0,00')) ?>">
           </div>
           <div>
             <label class="tr-label">Valor final</label>
@@ -395,21 +395,43 @@ function renderEditorField(string $name, string $label, string $value): string
     const contactNameInput = document.getElementById('contactNameInput');
     const billableToggle = document.getElementById('billableToggle');
     const billableFields = document.getElementById('billableFields');
+    const estimatedHoursInput = document.getElementById('estimatedHoursInput');
+    const executedHoursInput = document.getElementById('executedHoursInput');
     const baseAmountInput = document.getElementById('baseAmountInput');
     const discountAmountInput = document.getElementById('discountAmountInput');
     const surchargeAmountInput = document.getElementById('surchargeAmountInput');
     const finalAmountInput = document.getElementById('finalAmountInput');
     const baseServiceSelect = form.querySelector('select[name="base_service_id"]');
 
-    function parseMoney(value) {
+    function parseLocaleNumber(value) {
       let raw = String(value || '').trim().replace(/\s+/g, '');
-      raw = raw.replace(/\./g, '').replace(',', '.');
+      if (raw === '') return 0;
+      const hasComma = raw.includes(',');
+      const hasDot = raw.includes('.');
+      if (hasComma && hasDot) {
+        raw = raw.replace(/\./g, '').replace(',', '.');
+      } else if (hasComma) {
+        raw = raw.replace(',', '.');
+      }
       const amount = Number(raw);
       return Number.isFinite(amount) ? amount : 0;
     }
 
     function fmtMoney(value) {
       return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0));
+    }
+
+    function sanitizeNonNegative(input, formatter) {
+      if (!input) return 0;
+      const parsed = parseLocaleNumber(input.value);
+      const value = parsed < 0 ? 0 : parsed;
+      input.setCustomValidity(parsed < 0 ? 'Informe um valor maior ou igual a zero.' : '');
+      if (typeof formatter === 'function') {
+        input.value = formatter(value);
+      } else if (parsed < 0) {
+        input.value = String(value).replace('.', ',');
+      }
+      return value;
     }
 
     function toggleTypeOther() {
@@ -439,18 +461,30 @@ function renderEditorField(string $name, string $label, string $value): string
         finalAmountInput.value = '0,00';
         return;
       }
-      const total = parseMoney(baseAmountInput && baseAmountInput.value) - parseMoney(discountAmountInput && discountAmountInput.value) + parseMoney(surchargeAmountInput && surchargeAmountInput.value);
-      finalAmountInput.value = fmtMoney(Math.max(0, total));
+      const estimatedHours = sanitizeNonNegative(estimatedHoursInput);
+      const baseAmount = sanitizeNonNegative(baseAmountInput);
+      const discountAmount = sanitizeNonNegative(discountAmountInput);
+      const surchargeAmount = sanitizeNonNegative(surchargeAmountInput);
+      const total = (estimatedHours * baseAmount) - discountAmount + surchargeAmount;
+      finalAmountInput.value = fmtMoney(total);
     }
 
     function fillBasePrice() {
       if (!baseServiceSelect || !baseAmountInput) return;
       const option = baseServiceSelect.options[baseServiceSelect.selectedIndex];
       const rawPrice = option ? String(option.getAttribute('data-price') || '').trim() : '';
-      if (rawPrice !== '' && parseMoney(baseAmountInput.value) === 0) {
+      if (rawPrice !== '' && parseLocaleNumber(baseAmountInput.value) === 0) {
         baseAmountInput.value = fmtMoney(Number(rawPrice));
         calcFinal();
       }
+    }
+
+    function normalizeOnBlur(input, formatter) {
+      if (!input) return;
+      input.addEventListener('blur', () => {
+        sanitizeNonNegative(input, formatter);
+        calcFinal();
+      });
     }
 
     function syncEditors() {
@@ -492,9 +526,14 @@ function renderEditorField(string $name, string $label, string $value): string
     if (clientSelect) clientSelect.addEventListener('change', fillClientContact);
     if (billableToggle) billableToggle.addEventListener('change', toggleBillable);
     if (baseServiceSelect) baseServiceSelect.addEventListener('change', fillBasePrice);
-    [baseAmountInput, discountAmountInput, surchargeAmountInput].forEach((input) => {
+    [estimatedHoursInput, baseAmountInput, discountAmountInput, surchargeAmountInput].forEach((input) => {
       if (input) input.addEventListener('input', calcFinal);
     });
+    normalizeOnBlur(estimatedHoursInput);
+    normalizeOnBlur(executedHoursInput);
+    normalizeOnBlur(baseAmountInput, fmtMoney);
+    normalizeOnBlur(discountAmountInput, fmtMoney);
+    normalizeOnBlur(surchargeAmountInput, fmtMoney);
 
     toggleTypeOther();
     fillClientContact();

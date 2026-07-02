@@ -11,14 +11,18 @@ final class ContractPdfGenerator
     private int $margin = 56;
     private int $yTop = 750;
     private array $branding = [];
+    private array $primary = [41, 50, 65];
+    private array $surface = [248, 250, 252];
+    private array $border = [203, 213, 225];
 
     public function build(array $branding, array $contract, string $body, string $footer): string
     {
         $this->branding = $branding;
+        $this->primary = $this->hexToRgb((string) ($branding['primary_color'] ?? '#293241'));
         $pdf = new ProfessionalPdf();
         $pdf->addPage();
 
-        $contractTitle = trim((string) ($contract['title'] ?? 'Contrato de Prestacao de Servicos'));
+        $contractTitle = trim((string) ($contract['title'] ?? 'Contrato de Prestação de Serviços'));
         $company = trim((string) ($branding['company_name'] ?? 'TRAXTER'));
 
         $this->yTop = PdfStandardTheme::renderHeaderMinimal(
@@ -34,28 +38,20 @@ final class ContractPdfGenerator
             32
         );
 
-        $pdf->setFont('F2', 16);
-        $pdf->setFillColor(17, 24, 39);
         $y = $this->yTop;
-        $pdf->text($this->margin, $y, $contractTitle);
-        $pdf->setFont('F1', 10);
-        $y -= 18;
-        $pdf->setFillColor(71, 85, 105);
         $meta = [];
         $meta[] = 'Contrato ' . (string) ($contract['contract_number'] ?? '');
-        $meta[] = 'Versao ' . (int) ($contract['current_version'] ?? 1);
+        $meta[] = 'Versão ' . (int) ($contract['current_version'] ?? 1);
         if ($company !== '') {
             $meta[] = $company;
         }
-        $pdf->text($this->margin, $y, implode(' • ', array_filter($meta, static fn ($v) => trim((string) $v) !== '')));
-
-        $y -= 28;
+        $y = $this->heroCard($pdf, $y, $contractTitle, implode(' • ', array_filter($meta, static fn ($v) => trim((string) $v) !== '')));
         $y = $this->paragraph($pdf, $y, $body, 90, 12);
         if (trim($footer) !== '') {
             $y -= 12;
             $pdf->setFont('F2', 11);
             $pdf->setFillColor(17, 24, 39);
-            $pdf->text($this->margin, $y, 'Formalizacao');
+            $pdf->text($this->margin, $y, 'Formalização');
             $y -= 18;
             $y = $this->paragraph($pdf, $y, $footer, 90, 12);
         }
@@ -63,6 +59,25 @@ final class ContractPdfGenerator
         PdfStandardTheme::appendCenteredFooterPaginationAndContact($pdf, $this->pageW, $this->contactLine, 20, [71, 85, 105], 10);
 
         return $pdf->output();
+    }
+
+    private function heroCard(ProfessionalPdf $pdf, int $y, string $title, string $meta): int
+    {
+        $boxH = 96;
+        $pdf->setFillColor($this->primary[0], $this->primary[1], $this->primary[2]);
+        $pdf->rect($this->margin, $y - $boxH, $this->pageW - ($this->margin * 2), $boxH, 'F');
+        $pdf->setFillColor(255, 255, 255);
+        $pdf->setFont('F2', 18);
+        $pdf->text($this->margin + 18, $y - 28, $title);
+        $pdf->setFont('F1', 11);
+        foreach ($this->wrap($meta !== '' ? $meta : 'Documento contratual padronizado.', 60) as $index => $line) {
+            if ($index > 2) {
+                break;
+            }
+            $pdf->text($this->margin + 18, $y - 48 - ($index * 13), $line);
+        }
+
+        return $y - $boxH - 18;
     }
 
     private function paragraph(ProfessionalPdf $pdf, int $y, string $text, int $maxChars, int $lineHeight): int

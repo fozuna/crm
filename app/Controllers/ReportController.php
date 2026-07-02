@@ -127,10 +127,16 @@ final class ReportController
         $pdf = new ProfessionalPdf();
         $pdf->addPage();
         $y = PdfStandardTheme::renderHeaderMinimal($pdf, $branding, 595, 842, 50, 54, 4, 28, 200, 32);
+        $pdf->setFillColor(41, 50, 65);
+        $pdf->rect(50, $y - 94, 495, 94, 'F');
+        $pdf->setFillColor(255, 255, 255);
+        $pdf->setFont('F2', 18);
+        $pdf->text(68, $y - 28, 'Relatório Financeiro - Parcelas');
+        $pdf->setFont('F1', 11);
+        $pdf->text(68, $y - 46, 'Visão consolidada das parcelas geradas, recebidas e vencidas no período filtrado.');
+        $y -= 114;
+
         $pdf->setFillColor(26, 26, 26);
-        $pdf->setFont('F2', 14);
-        $pdf->text(50, $y, 'Relatório Financeiro — Parcelas');
-        $y -= 18;
         $pdf->setFont('F1', 11);
         $range = 'Período: ' . (($filters['from'] !== '' && $filters['to'] !== '') ? ($filters['from'] . ' até ' . $filters['to']) : 'todos');
         $pdf->text(50, $y, $range);
@@ -143,24 +149,40 @@ final class ReportController
         $kpiLine = 'A receber: R$ ' . number_format((float) ($totals['receivable'] ?? 0), 2, ',', '.') . '  |  Recebido: R$ ' . number_format((float) ($totals['received'] ?? 0), 2, ',', '.') . '  |  Vencido: R$ ' . number_format((float) ($totals['overdue'] ?? 0), 2, ',', '.');
         $pdf->text(50, $y, $kpiLine);
         $y -= 26;
-        $pdf->setFont('F2', 12);
-        $pdf->text(50, $y, 'Venc');
-        $pdf->text(100, $y, 'N');
-        $pdf->text(130, $y, 'Projeto');
-        $pdf->text(260, $y, 'Cliente');
-        $pdf->text(380, $y, 'Status');
-        $pdf->text(450, $y, 'Total');
-        $y -= 16;
+        $pdf->setFillColor(241, 245, 249);
+        $pdf->setStrokeColor(203, 213, 225);
+        $pdf->rect(50, $y - 24, 495, 24, 'DF');
+        $pdf->setFillColor(41, 50, 65);
+        $pdf->setFont('F2', 11);
+        $pdf->text(58, $y - 16, 'Venc.');
+        $pdf->text(108, $y - 16, 'N');
+        $pdf->text(138, $y - 16, 'Projeto');
+        $pdf->text(268, $y - 16, 'Cliente');
+        $pdf->text(388, $y - 16, 'Status');
+        $pdf->text(458, $y - 16, 'Total');
+        $y -= 34;
         $pdf->setFont('F1', 11);
 
         foreach ($exportRows as $r) {
             if ($y < 70) {
                 $pdf->addPage();
                 $y = PdfStandardTheme::renderHeaderMinimal($pdf, $branding, 595, 842, 50, 54, 4, 28, 200, 32);
-                $pdf->setFillColor(26, 26, 26);
+                $pdf->setFillColor(41, 50, 65);
                 $pdf->setFont('F2', 12);
-                $pdf->text(50, $y, 'Relatório Financeiro — Parcelas (continuação)');
-                $y -= 22;
+                $pdf->text(50, $y, 'Relatório Financeiro - Parcelas (continuação)');
+                $y -= 18;
+                $pdf->setFillColor(241, 245, 249);
+                $pdf->setStrokeColor(203, 213, 225);
+                $pdf->rect(50, $y - 24, 495, 24, 'DF');
+                $pdf->setFillColor(41, 50, 65);
+                $pdf->setFont('F2', 11);
+                $pdf->text(58, $y - 16, 'Venc.');
+                $pdf->text(108, $y - 16, 'N');
+                $pdf->text(138, $y - 16, 'Projeto');
+                $pdf->text(268, $y - 16, 'Cliente');
+                $pdf->text(388, $y - 16, 'Status');
+                $pdf->text(458, $y - 16, 'Total');
+                $y -= 34;
                 $pdf->setFont('F1', 11);
             }
 
