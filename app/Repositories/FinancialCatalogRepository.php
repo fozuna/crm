@@ -30,4 +30,24 @@ final class FinancialCatalogRepository
         $stmt->execute();
         return $stmt->fetchAll();
     }
+
+    public function findCategoryIdByName(int $companyId, string $name): ?int
+    {
+        $stmt = DB::pdo()->prepare('SELECT id FROM financial_categories WHERE company_id = :company_id AND name = :name LIMIT 1');
+        $stmt->bindValue(':company_id', $companyId, \PDO::PARAM_INT);
+        $stmt->bindValue(':name', $name);
+        $stmt->execute();
+        $value = $stmt->fetchColumn();
+        return $value !== false ? (int) $value : null;
+    }
+
+    public function findCostCenterIdByName(int $companyId, string $name): ?int
+    {
+        $stmt = DB::pdo()->prepare('SELECT id FROM financial_cost_centers WHERE company_id = :company_id AND name = :name LIMIT 1');
+        $stmt->bindValue(':company_id', $companyId, \PDO::PARAM_INT);
+        $stmt->bindValue(':name', $name);
+        $stmt->execute();
+        $value = $stmt->fetchColumn();
+        return $value !== false ? (int) $value : null;
+    }
 }

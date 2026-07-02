@@ -80,4 +80,7 @@ $assert(str_contains($longPdf, 'Servicos / Itens'), 'PDF com descrição longa m
 $leadFailures = require __DIR__ . '/leads_module.php';
 $failures += (int) $leadFailures;
 
+$serviceOrderFailures = require __DIR__ . '/service_orders_module.php';
+$failures += (int) $serviceOrderFailures;
+
 exit($failures > 0 ? 1 : 0);

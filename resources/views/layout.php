@@ -100,6 +100,10 @@ try {
         <?php endif; ?>
         <?php if (in_array($role, ['admin','pm'], true)): ?>
           <?= $navLink('/servicos', 'Serviços', 'list') ?>
+          <?= $navLink('/ordens-servico', 'Ordens de Serviço', 'briefcase') ?>
+        <?php endif; ?>
+        <?php if (in_array($role, ['finance','auditor'], true)): ?>
+          <?= $navLink('/ordens-servico', 'Ordens de Serviço', 'briefcase') ?>
         <?php endif; ?>
         <?php if (in_array($role, ['admin','pm','finance','auditor'], true)): ?>
           <?= $navLink('/projetos', 'Projetos', 'folder') ?>

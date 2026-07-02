@@ -27,6 +27,7 @@ use App\Controllers\MaintenanceController;
 use App\Controllers\ManualController;
 use App\Controllers\ServiceController;
 use App\Controllers\ServiceApiController;
+use App\Controllers\ServiceOrderController;
 use App\Controllers\FinancialModuleController;
 use App\Controllers\FinancialModuleApiController;
 use App\Core\Router;
@@ -62,6 +63,19 @@ return static function (Router $router, array $mw): void {
     $router->post('/servicos', [new ServiceController(), 'store'], [$auth, $pm, $csrf]);
     $router->get('/servicos/{id}/editar', [new ServiceController(), 'edit'], [$auth, $pm]);
     $router->post('/servicos/{id}', [new ServiceController(), 'update'], [$auth, $pm, $csrf]);
+
+    $router->get('/ordens-servico', [new ServiceOrderController(), 'index'], [$auth, $auditor]);
+    $router->get('/ordens-servico/relatorios', [new ServiceOrderController(), 'reports'], [$auth, $auditor]);
+    $router->get('/ordens-servico/nova', [new ServiceOrderController(), 'create'], [$auth, $pm]);
+    $router->post('/ordens-servico', [new ServiceOrderController(), 'store'], [$auth, $pm, $csrf]);
+    $router->get('/ordens-servico/{id}/editar', [new ServiceOrderController(), 'edit'], [$auth, $auditor]);
+    $router->post('/ordens-servico/{id}', [new ServiceOrderController(), 'update'], [$auth, $pm, $csrf]);
+    $router->post('/ordens-servico/{id}/status', [new ServiceOrderController(), 'updateStatus'], [$auth, $pm, $csrf]);
+    $router->post('/ordens-servico/{id}/cancelar', [new ServiceOrderController(), 'cancel'], [$auth, $pm, $csrf]);
+    $router->post('/ordens-servico/{id}/excluir', [new ServiceOrderController(), 'destroy'], [$auth, $pm, $csrf]);
+    $router->get('/ordens-servico/{id}/pdf', [new ServiceOrderController(), 'pdf'], [$auth, $auditor]);
+    $router->get('/ordens-servico/{id}/anexos/{attachmentId}', [new ServiceOrderController(), 'attachment'], [$auth, $auditor]);
+    $router->post('/ordens-servico/{id}/anexos/{attachmentId}/excluir', [new ServiceOrderController(), 'deleteAttachment'], [$auth, $pm, $csrf]);
 
     $router->get('/maintenance/db-upgrade/check', [new MaintenanceController(), 'checkDbUpgrade'], [$auth, $admin]);
     $router->post('/maintenance/db-upgrade/start', [new MaintenanceController(), 'startDbUpgrade'], [$auth, $admin, $csrf]);

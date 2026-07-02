@@ -28,4 +28,13 @@ final class ClientDetailsRepository
         $stmt->execute();
         return $stmt->fetchAll();
     }
+
+    public function serviceOrders(int $clientId): array
+    {
+        $pdo = DB::pdo();
+        $stmt = $pdo->prepare('SELECT id, numero_os, service_name, status, type, final_amount, opened_at, completed_at FROM servicos_avulsos WHERE client_id = :id AND deleted_at IS NULL ORDER BY id DESC');
+        $stmt->bindValue(':id', $clientId, \PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
 }

@@ -33,6 +33,9 @@ final class DbUpgradeRunner
             'contracts',
             'contract_versions',
             'contract_notifications',
+            'servicos_avulsos',
+            'servicos_avulsos_anexos',
+            'servicos_avulsos_historico',
         ];
 
         $missingTables = [];
@@ -57,8 +60,12 @@ final class DbUpgradeRunner
             'financial_accounts_receivable' => ['company_id', 'remaining_amount', 'status', 'source_installment_id'],
             'financial_receipts' => ['receipt_file_path', 'reversed_at', 'reversal_reason'],
             'leads' => ['person_type', 'document_number', 'email', 'phone', 'postal_code', 'street', 'street_number', 'neighborhood', 'city', 'state', 'birth_or_opening_date', 'market_segment', 'acquisition_source', 'stage', 'converted_at'],
+            'servicos_avulsos' => ['numero_sequencial', 'numero_os', 'client_id', 'assigned_user_id', 'type', 'status', 'billable', 'financial_receivable_id'],
         ];
         foreach ($needsColumns as $table => $cols) {
+            if (!$this->hasTable($pdo, $table)) {
+                continue;
+            }
             foreach ($cols as $col) {
                 if (!$this->hasColumn($pdo, $table, $col)) {
                     $missingColumns[] = $table . '.' . $col;
@@ -384,6 +391,9 @@ final class DbUpgradeRunner
 
     private function hasColumn(\PDO $pdo, string $table, string $column): bool
     {
+        if (!$this->hasTable($pdo, $table)) {
+            return false;
+        }
         $st = $pdo->query('SHOW COLUMNS FROM `' . str_replace('`', '', $table) . '` LIKE ' . $pdo->quote($column));
         $row = $st ? $st->fetch(\PDO::FETCH_NUM) : false;
         return $row !== false;
@@ -391,6 +401,9 @@ final class DbUpgradeRunner
 
     private function columnType(\PDO $pdo, string $table, string $column): ?string
     {
+        if (!$this->hasTable($pdo, $table)) {
+            return null;
+        }
         $st = $pdo->query('SHOW COLUMNS FROM `' . str_replace('`', '', $table) . '` LIKE ' . $pdo->quote($column));
         $row = $st ? $st->fetch(\PDO::FETCH_ASSOC) : false;
         if (!is_array($row)) {

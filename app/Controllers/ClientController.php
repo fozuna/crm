@@ -59,6 +59,7 @@ final class ClientController
         $details = new ClientDetailsRepository();
         $projects = $details->projects($id);
         $proposals = $details->proposals($id);
+        $serviceOrders = $details->serviceOrders($id);
         $interactions = (new ClientInteractionRepository())->listByClient($id);
 
         $logoPath = (string) ($client['logo_path'] ?? '');
@@ -71,6 +72,7 @@ final class ClientController
             'hasLogo' => $hasLogo,
             'projects' => $projects,
             'proposals' => $proposals,
+            'serviceOrders' => $serviceOrders,
             'interactions' => $interactions,
         ]);
     }

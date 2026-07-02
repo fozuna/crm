@@ -235,3 +235,42 @@ if ($hasHostingContract && !empty($client['hosting_due_date']) && !empty($client
     </div>
   </div>
 </div>
+
+<div class="mt-6 tr-card p-6 overflow-hidden">
+  <div class="flex items-center justify-between">
+    <div class="font-semibold">Ordens de serviço</div>
+    <a class="tr-icon-btn" href="<?= View::e($base . '/ordens-servico?client_id=' . (int) $client['id']) ?>" aria-label="Ver ordens de serviço do cliente">
+      <?= UI::icon('briefcase') ?>
+      <span class="sr-only">Ordens de serviço</span>
+    </a>
+  </div>
+  <div class="mt-4 overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="text-slate-700">
+        <tr>
+          <th class="text-left py-2">OS</th>
+          <th class="text-left py-2">Serviço</th>
+          <th class="text-left py-2">Status</th>
+          <th class="text-left py-2">Tipo</th>
+          <th class="text-left py-2">Valor</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach (($serviceOrders ?? []) as $os): ?>
+          <tr class="border-t">
+            <td class="py-2 pr-2">
+              <a class="font-medium text-traxterAccent" href="<?= View::e($base . '/ordens-servico/' . (int) $os['id'] . '/editar') ?>"><?= View::e((string) ($os['numero_os'] ?? '')) ?></a>
+            </td>
+            <td class="py-2 pr-2"><?= View::e((string) ($os['service_name'] ?? '')) ?></td>
+            <td class="py-2 pr-2"><span class="tr-badge"><?= View::e((string) ($os['status'] ?? '')) ?></span></td>
+            <td class="py-2 pr-2"><?= View::e((string) ($os['type'] ?? '')) ?></td>
+            <td class="py-2 pr-2"><?= (int) ($os['final_amount'] ?? 0) > 0 ? 'R$ ' . number_format((float) $os['final_amount'], 2, ',', '.') : 'Não faturável' ?></td>
+          </tr>
+        <?php endforeach; ?>
+        <?php if (count($serviceOrders ?? []) === 0): ?>
+          <tr><td class="py-4 text-slate-600" colspan="5">Nenhuma ordem de serviço associada.</td></tr>
+        <?php endif; ?>
+      </tbody>
+    </table>
+  </div>
+</div>

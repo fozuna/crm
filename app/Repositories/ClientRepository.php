@@ -38,6 +38,7 @@ final class ClientRepository implements ClientRepositoryContract
             'projects' => $count('projects'),
             'contracts' => $count('contracts'),
             'receivables' => $count('financial_accounts_receivable'),
+            'service_orders' => $count('servicos_avulsos'),
         ];
     }
 

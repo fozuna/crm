@@ -37,6 +37,12 @@ final class DashboardRepository
             'approved_proposals' => $approved,
             'active_projects' => $activeProjects,
             'receivable' => $receivable,
+            'service_orders_open' => (int) $pdo->query("SELECT COUNT(*) FROM servicos_avulsos WHERE deleted_at IS NULL AND status = 'aberto'")->fetchColumn(),
+            'service_orders_progress' => (int) $pdo->query("SELECT COUNT(*) FROM servicos_avulsos WHERE deleted_at IS NULL AND status = 'em_andamento'")->fetchColumn(),
+            'service_orders_done' => (int) $pdo->query("SELECT COUNT(*) FROM servicos_avulsos WHERE deleted_at IS NULL AND status = 'concluido'")->fetchColumn(),
+            'service_orders_billed' => (int) $pdo->query("SELECT COUNT(*) FROM servicos_avulsos WHERE deleted_at IS NULL AND status = 'faturado'")->fetchColumn(),
+            'service_orders_billed_month' => (float) $pdo->query("SELECT COALESCE(SUM(final_amount), 0) FROM servicos_avulsos WHERE deleted_at IS NULL AND status = 'faturado' AND completed_at IS NOT NULL AND DATE_FORMAT(completed_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')")->fetchColumn(),
+            'service_orders_avg_hours' => (float) $pdo->query("SELECT COALESCE(AVG(TIMESTAMPDIFF(HOUR, opened_at, completed_at)), 0) FROM servicos_avulsos WHERE deleted_at IS NULL AND completed_at IS NOT NULL AND status IN ('concluido', 'faturado')")->fetchColumn(),
         ];
     }
 }

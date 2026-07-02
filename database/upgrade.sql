@@ -742,7 +742,87 @@ ALTER TABLE leads
   ADD CONSTRAINT fk_leads_converted_client FOREIGN KEY (converted_client_id) REFERENCES clients(id) ON DELETE SET NULL;
 
 -- ============================================================================
--- BLOCO 8: SEEDS IDEMPOTENTES DE FORMAS DE PAGAMENTO.
+-- BLOCO 8: MODULO DE ORDENS DE SERVICO.
+-- Estrutura independente para registrar demandas pontuais, anexos, historico
+-- operacional e vinculo opcional com o financeiro do CRM.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS servicos_avulsos (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  numero_sequencial INT UNSIGNED NOT NULL,
+  numero_os VARCHAR(30) NOT NULL,
+  service_name VARCHAR(190) NOT NULL,
+  client_id INT UNSIGNED NOT NULL,
+  contact_name VARCHAR(190) NULL,
+  assigned_user_id INT UNSIGNED NULL,
+  type ENUM('correcao','melhoria','suporte','consultoria','implantacao','treinamento','outro') NOT NULL DEFAULT 'suporte',
+  type_other_description VARCHAR(190) NULL,
+  status ENUM('aberto','em_andamento','aguardando_cliente','aguardando_terceiros','concluido','cancelado','faturado') NOT NULL DEFAULT 'aberto',
+  request_description MEDIUMTEXT NULL,
+  executed_activities MEDIUMTEXT NULL,
+  technical_notes MEDIUMTEXT NULL,
+  internal_notes TEXT NULL,
+  opened_at DATETIME NOT NULL,
+  due_at DATETIME NULL,
+  completed_at DATETIME NULL,
+  estimated_hours DECIMAL(10,2) NULL,
+  executed_hours DECIMAL(10,2) NULL,
+  billable TINYINT(1) NOT NULL DEFAULT 0,
+  base_service_id INT UNSIGNED NULL,
+  base_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+  discount_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+  surcharge_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+  final_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+  financial_receivable_id INT UNSIGNED NULL,
+  created_by INT UNSIGNED NULL,
+  updated_by INT UNSIGNED NULL,
+  deleted_at DATETIME NULL,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  UNIQUE KEY uq_servicos_avulsos_numero_sequencial (numero_sequencial),
+  UNIQUE KEY uq_servicos_avulsos_numero_os (numero_os),
+  INDEX idx_servicos_avulsos_status (status, opened_at),
+  INDEX idx_servicos_avulsos_client (client_id, status),
+  INDEX idx_servicos_avulsos_assigned (assigned_user_id, status),
+  INDEX idx_servicos_avulsos_billable (billable, status),
+  INDEX idx_servicos_avulsos_receivable (financial_receivable_id),
+  CONSTRAINT fk_servicos_avulsos_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_servicos_avulsos_user FOREIGN KEY (assigned_user_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_servicos_avulsos_service FOREIGN KEY (base_service_id) REFERENCES services(id) ON DELETE SET NULL,
+  CONSTRAINT fk_servicos_avulsos_receivable FOREIGN KEY (financial_receivable_id) REFERENCES financial_accounts_receivable(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS servicos_avulsos_anexos (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  servico_avulso_id INT UNSIGNED NOT NULL,
+  original_name VARCHAR(255) NOT NULL,
+  stored_name VARCHAR(255) NOT NULL,
+  file_path VARCHAR(255) NOT NULL,
+  file_extension VARCHAR(20) NOT NULL,
+  file_size INT UNSIGNED NOT NULL,
+  mime_type VARCHAR(120) NOT NULL,
+  uploaded_by INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL,
+  INDEX idx_servicos_avulsos_anexos_os (servico_avulso_id, created_at),
+  CONSTRAINT fk_servicos_avulsos_anexos_os FOREIGN KEY (servico_avulso_id) REFERENCES servicos_avulsos(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS servicos_avulsos_historico (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  servico_avulso_id INT UNSIGNED NOT NULL,
+  actor_id INT UNSIGNED NULL,
+  action VARCHAR(60) NOT NULL,
+  field_name VARCHAR(60) NULL,
+  old_value TEXT NULL,
+  new_value TEXT NULL,
+  message TEXT NULL,
+  metadata MEDIUMTEXT NULL,
+  created_at DATETIME NOT NULL,
+  INDEX idx_servicos_avulsos_historico_os (servico_avulso_id, created_at),
+  CONSTRAINT fk_servicos_avulsos_historico_os FOREIGN KEY (servico_avulso_id) REFERENCES servicos_avulsos(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================================
+-- BLOCO 9: SEEDS IDEMPOTENTES DE FORMAS DE PAGAMENTO.
 -- Sao inseridas apenas quando ainda nao existirem registros equivalentes,
 -- evitando duplicacao em reexecucoes do upgrade.
 -- ============================================================================
@@ -760,4 +840,20 @@ WHERE NOT EXISTS (
   SELECT 1
   FROM payment_methods
   WHERE name = 'Parcelado 3x (sem entrada)'
+);
+
+INSERT INTO financial_categories (company_id, name, type, color, active, created_at, updated_at)
+SELECT 1, 'Serviços avulsos', 'receivable', '#8B5CF6', 1, NOW(), NOW()
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM financial_categories
+  WHERE company_id = 1 AND name = 'Serviços avulsos'
+);
+
+INSERT INTO financial_cost_centers (company_id, name, code, active, created_at, updated_at)
+SELECT 1, 'Serviços Avulsos', 'OS', 1, NOW(), NOW()
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM financial_cost_centers
+  WHERE company_id = 1 AND name = 'Serviços Avulsos'
 );

@@ -114,6 +114,33 @@ $toDefault = date('Y-m-t');
   </div>
 </div>
 
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4 mt-6">
+  <div class="tr-card p-5">
+    <div class="text-sm text-slate-600">OS em aberto</div>
+    <div class="text-2xl font-semibold mt-2"><?= (int) ($stats['service_orders_open'] ?? 0) ?></div>
+  </div>
+  <div class="tr-card p-5">
+    <div class="text-sm text-slate-600">OS em andamento</div>
+    <div class="text-2xl font-semibold mt-2"><?= (int) ($stats['service_orders_progress'] ?? 0) ?></div>
+  </div>
+  <div class="tr-card p-5">
+    <div class="text-sm text-slate-600">OS concluídas</div>
+    <div class="text-2xl font-semibold mt-2"><?= (int) ($stats['service_orders_done'] ?? 0) ?></div>
+  </div>
+  <div class="tr-card p-5">
+    <div class="text-sm text-slate-600">OS faturadas</div>
+    <div class="text-2xl font-semibold mt-2"><?= (int) ($stats['service_orders_billed'] ?? 0) ?></div>
+  </div>
+  <div class="tr-card p-5">
+    <div class="text-sm text-slate-600">Valor faturado no mês</div>
+    <div class="text-2xl font-semibold mt-2">R$ <?= number_format((float) ($stats['service_orders_billed_month'] ?? 0), 2, ',', '.') ?></div>
+  </div>
+  <div class="tr-card p-5">
+    <div class="text-sm text-slate-600">Tempo médio de conclusão</div>
+    <div class="text-2xl font-semibold mt-2"><?= number_format((float) ($stats['service_orders_avg_hours'] ?? 0), 2, ',', '.') ?> h</div>
+  </div>
+</div>
+
 <script>
   (function(){
     const base = <?= json_encode((string)$base, JSON_UNESCAPED_UNICODE) ?>;
