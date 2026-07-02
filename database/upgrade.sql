@@ -4,20 +4,19 @@
 -- Todas as colunas novas sao adicionadas de forma aditiva para preservar dados
 -- existentes e permitir reuso posterior no fluxo de propostas e conversao.
 -- ============================================================================
-ALTER TABLE clients
-  ADD COLUMN contact_person VARCHAR(190) NULL AFTER company,
-  ADD COLUMN status ENUM('lead','ativo') NOT NULL DEFAULT 'lead' AFTER contact_person,
-  ADD COLUMN project_reference VARCHAR(190) NULL AFTER status,
-  ADD COLUMN has_hosting_contract TINYINT(1) NOT NULL DEFAULT 0 AFTER project_reference,
-  ADD COLUMN hosting_contract_amount DECIMAL(12,2) NULL AFTER has_hosting_contract,
-  ADD COLUMN hosting_due_date DATE NULL AFTER hosting_contract_amount,
-  ADD COLUMN hosting_renewal_days TINYINT UNSIGNED NULL AFTER hosting_due_date,
-  ADD COLUMN manages_domain TINYINT(1) NOT NULL DEFAULT 0 AFTER hosting_renewal_days,
-  ADD COLUMN domain_due_date DATE NULL AFTER manages_domain,
-  ADD COLUMN domain_amount DECIMAL(12,2) NULL AFTER domain_due_date,
-  ADD COLUMN logo_path VARCHAR(255) NULL AFTER domain_amount,
-  ADD COLUMN logo_mime VARCHAR(120) NULL AFTER logo_path,
-  ADD COLUMN logo_original_name VARCHAR(255) NULL AFTER logo_mime;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS contact_person VARCHAR(190) NULL AFTER company;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS status ENUM('lead','ativo') NOT NULL DEFAULT 'lead' AFTER contact_person;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS project_reference VARCHAR(190) NULL AFTER status;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS has_hosting_contract TINYINT(1) NOT NULL DEFAULT 0 AFTER project_reference;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS hosting_contract_amount DECIMAL(12,2) NULL AFTER has_hosting_contract;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS hosting_due_date DATE NULL AFTER hosting_contract_amount;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS hosting_renewal_days TINYINT UNSIGNED NULL AFTER hosting_due_date;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS manages_domain TINYINT(1) NOT NULL DEFAULT 0 AFTER hosting_renewal_days;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS domain_due_date DATE NULL AFTER manages_domain;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS domain_amount DECIMAL(12,2) NULL AFTER domain_due_date;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS logo_path VARCHAR(255) NULL AFTER domain_amount;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS logo_mime VARCHAR(120) NULL AFTER logo_path;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS logo_original_name VARCHAR(255) NULL AFTER logo_mime;
 
 -- ============================================================================
 -- BLOCO 2: HISTORICO DE INTERACOES DE CLIENTES.
