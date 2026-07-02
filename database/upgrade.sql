@@ -36,22 +36,21 @@ CREATE TABLE IF NOT EXISTS client_interactions (
 -- BLOCO 3: EVOLUCAO DA TABELA DE PROPOSTAS E CADASTROS AUXILIARES.
 -- Inclui campos comerciais, pagamento estruturado e suporte a contratos.
 -- ============================================================================
-ALTER TABLE proposals
-  ADD COLUMN description MEDIUMTEXT NULL AFTER title,
-  ADD COLUMN subtotal DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER status,
-  ADD COLUMN discount_percent DECIMAL(5,2) NOT NULL DEFAULT 0 AFTER subtotal,
-  ADD COLUMN discount_amount DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER discount_percent,
-  ADD COLUMN payment_method_id INT UNSIGNED NULL AFTER total,
-  ADD COLUMN payment_snapshot MEDIUMTEXT NULL AFTER payment_method_id,
-  ADD COLUMN payment_options MEDIUMTEXT NULL AFTER payment_snapshot,
-  ADD COLUMN payment_selected_index INT UNSIGNED NOT NULL DEFAULT 0 AFTER payment_options,
-  ADD COLUMN delivery_start DATE NULL AFTER payment_selected_index,
-  ADD COLUMN delivery_end DATE NULL AFTER delivery_start,
-  ADD COLUMN penalty_terms TEXT NULL AFTER delivery_end,
-  ADD COLUMN terms MEDIUMTEXT NULL AFTER penalty_terms,
-  ADD COLUMN requires_contract TINYINT(1) NOT NULL DEFAULT 0 AFTER terms,
-  ADD COLUMN contract_template_id INT UNSIGNED NULL AFTER requires_contract,
-  ADD COLUMN contract_policy_reason VARCHAR(255) NULL AFTER contract_template_id;
+ALTER TABLE proposals ADD COLUMN IF NOT EXISTS description MEDIUMTEXT NULL AFTER title;
+ALTER TABLE proposals ADD COLUMN IF NOT EXISTS subtotal DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER status;
+ALTER TABLE proposals ADD COLUMN IF NOT EXISTS discount_percent DECIMAL(5,2) NOT NULL DEFAULT 0 AFTER subtotal;
+ALTER TABLE proposals ADD COLUMN IF NOT EXISTS discount_amount DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER discount_percent;
+ALTER TABLE proposals ADD COLUMN IF NOT EXISTS payment_method_id INT UNSIGNED NULL AFTER total;
+ALTER TABLE proposals ADD COLUMN IF NOT EXISTS payment_snapshot MEDIUMTEXT NULL AFTER payment_method_id;
+ALTER TABLE proposals ADD COLUMN IF NOT EXISTS payment_options MEDIUMTEXT NULL AFTER payment_snapshot;
+ALTER TABLE proposals ADD COLUMN IF NOT EXISTS payment_selected_index INT UNSIGNED NOT NULL DEFAULT 0 AFTER payment_options;
+ALTER TABLE proposals ADD COLUMN IF NOT EXISTS delivery_start DATE NULL AFTER payment_selected_index;
+ALTER TABLE proposals ADD COLUMN IF NOT EXISTS delivery_end DATE NULL AFTER delivery_start;
+ALTER TABLE proposals ADD COLUMN IF NOT EXISTS penalty_terms TEXT NULL AFTER delivery_end;
+ALTER TABLE proposals ADD COLUMN IF NOT EXISTS terms MEDIUMTEXT NULL AFTER penalty_terms;
+ALTER TABLE proposals ADD COLUMN IF NOT EXISTS requires_contract TINYINT(1) NOT NULL DEFAULT 0 AFTER terms;
+ALTER TABLE proposals ADD COLUMN IF NOT EXISTS contract_template_id INT UNSIGNED NULL AFTER requires_contract;
+ALTER TABLE proposals ADD COLUMN IF NOT EXISTS contract_policy_reason VARCHAR(255) NULL AFTER contract_template_id;
 
 CREATE TABLE IF NOT EXISTS payment_methods (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -82,8 +81,21 @@ CREATE TABLE IF NOT EXISTS services (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Vinculo de forma de pagamento padronizada para propostas existentes e novas.
-ALTER TABLE proposals
-  ADD CONSTRAINT fk_proposals_payment_method FOREIGN KEY (payment_method_id) REFERENCES payment_methods(id) ON DELETE SET NULL;
+SET @fk_proposals_payment_method_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.TABLE_CONSTRAINTS
+  WHERE CONSTRAINT_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'proposals'
+    AND CONSTRAINT_NAME = 'fk_proposals_payment_method'
+);
+SET @fk_proposals_payment_method_sql := IF(
+  @fk_proposals_payment_method_exists = 0,
+  'ALTER TABLE proposals ADD CONSTRAINT fk_proposals_payment_method FOREIGN KEY (payment_method_id) REFERENCES payment_methods(id) ON DELETE SET NULL',
+  'SELECT 1'
+);
+PREPARE fk_stmt FROM @fk_proposals_payment_method_sql;
+EXECUTE fk_stmt;
+DEALLOCATE PREPARE fk_stmt;
 
 -- Marcos de entrega vinculados a cada proposta.
 CREATE TABLE IF NOT EXISTS proposal_milestones (
@@ -99,20 +111,43 @@ CREATE TABLE IF NOT EXISTS proposal_milestones (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Itens de proposta passam a suportar catalogo de servicos e bonus.
-ALTER TABLE proposal_items
-  ADD COLUMN service_id INT UNSIGNED NULL AFTER proposal_id;
+ALTER TABLE proposal_items ADD COLUMN IF NOT EXISTS service_id INT UNSIGNED NULL AFTER proposal_id;
 
-ALTER TABLE proposal_items
-  ADD COLUMN is_bonus TINYINT(1) NOT NULL DEFAULT 0 AFTER service_id;
+ALTER TABLE proposal_items ADD COLUMN IF NOT EXISTS is_bonus TINYINT(1) NOT NULL DEFAULT 0 AFTER service_id;
 
-ALTER TABLE proposal_items
-  ADD COLUMN catalog_price DECIMAL(12,2) NULL AFTER is_bonus;
+ALTER TABLE proposal_items ADD COLUMN IF NOT EXISTS catalog_price DECIMAL(12,2) NULL AFTER is_bonus;
 
-ALTER TABLE proposal_items
-  ADD INDEX idx_item_service (service_id);
+SET @idx_item_service_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'proposal_items'
+    AND INDEX_NAME = 'idx_item_service'
+);
+SET @idx_item_service_sql := IF(
+  @idx_item_service_exists = 0,
+  'CREATE INDEX idx_item_service ON proposal_items (service_id)',
+  'SELECT 1'
+);
+PREPARE idx_stmt FROM @idx_item_service_sql;
+EXECUTE idx_stmt;
+DEALLOCATE PREPARE idx_stmt;
 
-ALTER TABLE proposal_items
-  ADD CONSTRAINT fk_items_service FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE SET NULL;
+SET @fk_items_service_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.TABLE_CONSTRAINTS
+  WHERE CONSTRAINT_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'proposal_items'
+    AND CONSTRAINT_NAME = 'fk_items_service'
+);
+SET @fk_items_service_sql := IF(
+  @fk_items_service_exists = 0,
+  'ALTER TABLE proposal_items ADD CONSTRAINT fk_items_service FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE SET NULL',
+  'SELECT 1'
+);
+PREPARE fk2_stmt FROM @fk_items_service_sql;
+EXECUTE fk2_stmt;
+DEALLOCATE PREPARE fk2_stmt;
 
 -- Historico de PDFs/versoes geradas para propostas.
 CREATE TABLE IF NOT EXISTS proposal_documents (
