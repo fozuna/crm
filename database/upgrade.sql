@@ -310,11 +310,8 @@ ON DUPLICATE KEY UPDATE
 -- BLOCO 5: EVOLUCAO DE USUARIOS E PERFIL DA EMPRESA.
 -- Ajustes necessarios para papeis, branding e auditoria institucional.
 -- ============================================================================
-ALTER TABLE users
-  ADD COLUMN is_admin TINYINT(1) NOT NULL DEFAULT 0 AFTER password_hash;
-
-ALTER TABLE users
-  ADD COLUMN role ENUM('admin','pm','finance','auditor') NOT NULL DEFAULT 'pm' AFTER is_admin;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin TINYINT(1) NOT NULL DEFAULT 0 AFTER password_hash;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS role ENUM('admin','pm','finance','auditor') NOT NULL DEFAULT 'pm' AFTER is_admin;
 
 UPDATE users SET role = 'admin' WHERE is_admin = 1;
 
