@@ -388,11 +388,37 @@ CREATE TABLE IF NOT EXISTS projects (
   INDEX idx_project_phase (workflow_phase)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-ALTER TABLE projects
-  ADD CONSTRAINT fk_projects_proposal FOREIGN KEY (proposal_id) REFERENCES proposals(id) ON DELETE RESTRICT;
+SET @fk_projects_proposal_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.TABLE_CONSTRAINTS
+  WHERE CONSTRAINT_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'projects'
+    AND CONSTRAINT_NAME = 'fk_projects_proposal'
+);
+SET @fk_projects_proposal_sql := IF(
+  @fk_projects_proposal_exists = 0,
+  'ALTER TABLE projects ADD CONSTRAINT fk_projects_proposal FOREIGN KEY (proposal_id) REFERENCES proposals(id) ON DELETE RESTRICT',
+  'SELECT 1'
+);
+PREPARE fk_projects_proposal_stmt FROM @fk_projects_proposal_sql;
+EXECUTE fk_projects_proposal_stmt;
+DEALLOCATE PREPARE fk_projects_proposal_stmt;
 
-ALTER TABLE projects
-  ADD CONSTRAINT fk_projects_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT;
+SET @fk_projects_client_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.TABLE_CONSTRAINTS
+  WHERE CONSTRAINT_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'projects'
+    AND CONSTRAINT_NAME = 'fk_projects_client'
+);
+SET @fk_projects_client_sql := IF(
+  @fk_projects_client_exists = 0,
+  'ALTER TABLE projects ADD CONSTRAINT fk_projects_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT',
+  'SELECT 1'
+);
+PREPARE fk_projects_client_stmt FROM @fk_projects_client_sql;
+EXECUTE fk_projects_client_stmt;
+DEALLOCATE PREPARE fk_projects_client_stmt;
 
 CREATE TABLE IF NOT EXISTS finance_installments (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -416,11 +442,37 @@ CREATE TABLE IF NOT EXISTS finance_installments (
   INDEX idx_finance_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-ALTER TABLE finance_installments
-  ADD CONSTRAINT fk_finance_proposal FOREIGN KEY (proposal_id) REFERENCES proposals(id) ON DELETE RESTRICT;
+SET @fk_finance_proposal_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.TABLE_CONSTRAINTS
+  WHERE CONSTRAINT_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'finance_installments'
+    AND CONSTRAINT_NAME = 'fk_finance_proposal'
+);
+SET @fk_finance_proposal_sql := IF(
+  @fk_finance_proposal_exists = 0,
+  'ALTER TABLE finance_installments ADD CONSTRAINT fk_finance_proposal FOREIGN KEY (proposal_id) REFERENCES proposals(id) ON DELETE RESTRICT',
+  'SELECT 1'
+);
+PREPARE fk_finance_proposal_stmt FROM @fk_finance_proposal_sql;
+EXECUTE fk_finance_proposal_stmt;
+DEALLOCATE PREPARE fk_finance_proposal_stmt;
 
-ALTER TABLE finance_installments
-  ADD CONSTRAINT fk_finance_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
+SET @fk_finance_project_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.TABLE_CONSTRAINTS
+  WHERE CONSTRAINT_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'finance_installments'
+    AND CONSTRAINT_NAME = 'fk_finance_project'
+);
+SET @fk_finance_project_sql := IF(
+  @fk_finance_project_exists = 0,
+  'ALTER TABLE finance_installments ADD CONSTRAINT fk_finance_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE',
+  'SELECT 1'
+);
+PREPARE fk_finance_project_stmt FROM @fk_finance_project_sql;
+EXECUTE fk_finance_project_stmt;
+DEALLOCATE PREPARE fk_finance_project_stmt;
 
 CREATE TABLE IF NOT EXISTS finance_payments (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
