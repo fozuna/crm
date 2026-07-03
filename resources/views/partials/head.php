@@ -22,27 +22,40 @@ $pageTitleResolved = (string)($pageTitle ?? ($branding['meta_title'] !== '' ? $b
 $primaryColor = (string)($branding['primary_color'] ?? '#293241');
 $accentColor = (string)($branding['accent_color'] ?? '#ee6c4d');
 $fontFamily = trim((string)($branding['font_name'] ?? 'Helvetica'));
-$metaDescription = trim((string)($branding['meta_description'] ?? ''));
-$metaKeywords = trim((string)($branding['meta_keywords'] ?? ''));
+$metaDescription = trim((string)($pageDescription ?? ($branding['meta_description'] ?? '')));
+$metaKeywords = trim((string)($pageKeywords ?? ($branding['meta_keywords'] ?? '')));
 $basePath = (string)($base ?? '');
-$metaImage = !empty($branding['meta_image_path']) ? ($basePath . '/empresa/ativo/meta-image') : '';
+$metaImage = trim((string)($pageImage ?? ''));
+if ($metaImage === '' && !empty($branding['meta_image_path'])) {
+  $metaImage = $basePath . '/empresa/ativo/meta-image';
+}
 $faviconHref = !empty($branding['favicon_path']) ? ($basePath . '/empresa/ativo/favicon') : '';
+$canonicalHref = trim((string)($pageCanonical ?? ''));
+$ogType = trim((string)($pageOgType ?? 'website'));
+$metaRobots = trim((string)($pageRobots ?? 'index,follow'));
+$schemaJsonLd = $pageSchemaJsonLd ?? null;
 ?>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= View::e($pageTitleResolved) ?></title>
   <?php if ($metaDescription !== ''): ?><meta name="description" content="<?= View::e($metaDescription) ?>"><?php endif; ?>
   <?php if ($metaKeywords !== ''): ?><meta name="keywords" content="<?= View::e($metaKeywords) ?>"><?php endif; ?>
+  <?php if ($metaRobots !== ''): ?><meta name="robots" content="<?= View::e($metaRobots) ?>"><?php endif; ?>
   <meta name="theme-color" content="<?= View::e($primaryColor) ?>">
   <?php if ($faviconHref !== ''): ?><link rel="icon" href="<?= View::e($faviconHref) ?>"><?php endif; ?>
+  <?php if ($canonicalHref !== ''): ?><link rel="canonical" href="<?= View::e($canonicalHref) ?>"><?php endif; ?>
   <meta property="og:title" content="<?= View::e($pageTitleResolved) ?>">
   <?php if ($metaDescription !== ''): ?><meta property="og:description" content="<?= View::e($metaDescription) ?>"><?php endif; ?>
-  <meta property="og:type" content="website">
+  <meta property="og:type" content="<?= View::e($ogType !== '' ? $ogType : 'website') ?>">
+  <?php if ($canonicalHref !== ''): ?><meta property="og:url" content="<?= View::e($canonicalHref) ?>"><?php endif; ?>
   <?php if ($metaImage !== ''): ?><meta property="og:image" content="<?= View::e($metaImage) ?>"><?php endif; ?>
   <meta name="twitter:card" content="<?= $metaImage !== '' ? 'summary_large_image' : 'summary' ?>">
   <meta name="twitter:title" content="<?= View::e($pageTitleResolved) ?>">
   <?php if ($metaDescription !== ''): ?><meta name="twitter:description" content="<?= View::e($metaDescription) ?>"><?php endif; ?>
   <?php if ($metaImage !== ''): ?><meta name="twitter:image" content="<?= View::e($metaImage) ?>"><?php endif; ?>
+  <?php if (is_array($schemaJsonLd) && count($schemaJsonLd) > 0): ?>
+  <script type="application/ld+json"><?= json_encode($schemaJsonLd, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?></script>
+  <?php endif; ?>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = { theme: { extend: { colors: { traxterSidebar:<?= json_encode($primaryColor, JSON_UNESCAPED_UNICODE) ?>, traxterAccent:<?= json_encode($accentColor, JSON_UNESCAPED_UNICODE) ?>, traxterText:'#fefefe', traxterDark:<?= json_encode($primaryColor, JSON_UNESCAPED_UNICODE) ?> }}}}
