@@ -8,6 +8,7 @@ use App\Core\Response;
 use App\Core\Config;
 use App\Core\Session;
 use App\Repositories\AuditLogRepository;
+use App\Services\DbLifecycleLogger;
 use App\Services\DbResetRunner;
 use App\Services\DbUpgradeRunner;
 
@@ -65,7 +66,13 @@ final class MaintenanceController
             $res = null;
             $err = null;
             try {
-                $res = $runner->run(\App\Core\DB::pdo());
+                $logger = new DbLifecycleLogger();
+                $res = $runner->run(\App\Core\DB::pdo(), static function (string $event, array $context = [], ?\Throwable $exception = null) use ($logger, $jobId): void {
+                    $logger->write('maintenance_db_upgrade_' . $event, [
+                        'job_id' => $jobId,
+                        'context' => $context,
+                    ], $exception);
+                });
             } catch (\Throwable $e) {
                 $err = (string) $e;
             }

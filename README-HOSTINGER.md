@@ -33,7 +33,8 @@ Diretorios internos protegidos por `.htaccess`:
    - `DB_NAME`
    - `DB_USER`
    - `DB_PASS`
-4. Importe `database/schema.sql` no banco MariaDB pelo phpMyAdmin da Hostinger, caso o banco ainda esteja vazio.
+4. Execute obrigatoriamente o preflight oficial antes de liberar o sistema:
+   - `php tools/deploy_preflight.php --env=production`
 5. Garanta permissao de escrita em `storage/`.
 
 ## Valores recomendados
@@ -51,12 +52,14 @@ Diretorios internos protegidos por `.htaccess`:
 - A aplicacao cria automaticamente diretorios de runtime em `storage/`.
 - O arquivo `.env` e opcional. Em producao, `config/config.php` ja e suficiente.
 - O instalador permanece disponivel apenas como contingencia, mas o fluxo normal de deploy nao depende dele.
+- O sistema valida a estrutura do banco na inicializacao e bloqueia o uso se houver divergencia estrutural.
 - Scripts de diagnostico/teste nao acompanham o pacote operacional de producao.
 
 ## Validacao rapida
 
 Depois do upload e da edicao do `config/config.php`:
 
-1. Abra `/login`.
-2. Verifique se a aplicacao responde sem erro 500.
-3. Confirme acesso ao banco e renderizacao da tela inicial.
+1. Execute `php tools/deploy_preflight.php --env=production`.
+2. Abra `/login`.
+3. Verifique se a aplicacao responde sem erro 500.
+4. Confirme acesso ao banco e renderizacao da tela inicial.

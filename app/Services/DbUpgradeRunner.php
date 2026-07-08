@@ -5,9 +5,9 @@ namespace App\Services;
 
 final class DbUpgradeRunner
 {
-    public function inspect(\PDO $pdo): array
+    public function requiredTables(): array
     {
-        $requiredTables = [
+        return [
             'projects',
             'project_tasks',
             'project_milestones',
@@ -36,17 +36,15 @@ final class DbUpgradeRunner
             'servicos_avulsos',
             'servicos_avulsos_anexos',
             'servicos_avulsos_historico',
+            'servicos_avulsos_aprovacoes',
+            'servicos_avulsos_aprovacao_eventos',
+            'servicos_avulsos_aprovacao_notificacoes',
         ];
+    }
 
-        $missingTables = [];
-        foreach ($requiredTables as $t) {
-            if (!$this->hasTable($pdo, $t)) {
-                $missingTables[] = $t;
-            }
-        }
-
-        $missingColumns = [];
-        $needsColumns = [
+    public function requiredColumns(): array
+    {
+        return [
             'clients' => ['person_type', 'document_number', 'secondary_phone', 'postal_code', 'street', 'street_number', 'address_complement', 'neighborhood', 'city', 'state', 'birth_or_opening_date', 'market_segment', 'acquisition_source', 'billing_email', 'billing_phone', 'billing_notes', 'contract_notes', 'source_lead_id', 'has_hosting_contract', 'hosting_contract_amount', 'hosting_due_date', 'hosting_renewal_days', 'manages_domain', 'domain_due_date', 'domain_amount'],
             'proposals' => ['requires_contract', 'contract_template_id', 'contract_policy_reason'],
             'company_profile' => ['brand_name', 'brand_tagline', 'primary_color', 'accent_color', 'font_name', 'meta_title', 'meta_description', 'meta_keywords', 'favicon_path', 'favicon_mime', 'favicon_original_name', 'meta_image_path', 'meta_image_mime', 'meta_image_original_name'],
@@ -61,8 +59,23 @@ final class DbUpgradeRunner
             'financial_receipts' => ['receipt_file_path', 'reversed_at', 'reversal_reason'],
             'leads' => ['person_type', 'document_number', 'email', 'phone', 'postal_code', 'street', 'street_number', 'neighborhood', 'city', 'state', 'birth_or_opening_date', 'market_segment', 'acquisition_source', 'stage', 'converted_at'],
             'servicos_avulsos' => ['numero_sequencial', 'numero_os', 'client_id', 'assigned_user_id', 'type', 'status', 'billable', 'financial_receivable_id'],
+            'servicos_avulsos_aprovacoes' => ['public_id', 'token_hash', 'token_expires_at', 'status', 'proof_pdf_path', 'email_sent_at'],
+            'servicos_avulsos_aprovacao_eventos' => ['event_type', 'ip_address', 'geo_summary', 'metadata'],
+            'servicos_avulsos_aprovacao_notificacoes' => ['channel', 'notification_type', 'recipient_target', 'status', 'message'],
         ];
-        foreach ($needsColumns as $table => $cols) {
+    }
+
+    public function inspect(\PDO $pdo): array
+    {
+        $missingTables = [];
+        foreach ($this->requiredTables() as $t) {
+            if (!$this->hasTable($pdo, $t)) {
+                $missingTables[] = $t;
+            }
+        }
+
+        $missingColumns = [];
+        foreach ($this->requiredColumns() as $table => $cols) {
             if (!$this->hasTable($pdo, $table)) {
                 continue;
             }
@@ -94,12 +107,16 @@ final class DbUpgradeRunner
         ];
     }
 
-    public function run(\PDO $pdo): array
+    public function run(\PDO $pdo, ?callable $logger = null): array
     {
         $path = __DIR__ . '/../../database/upgrade.sql';
         $raw = @file_get_contents($path);
         if (!is_string($raw) || trim($raw) === '') {
             throw new \RuntimeException('upgrade.sql não encontrado ou vazio.');
+        }
+
+        if (is_callable($logger)) {
+            $logger('start', ['path' => $path]);
         }
 
         $statements = [];
@@ -122,15 +139,28 @@ final class DbUpgradeRunner
                 $deferredStatements[] = [$i, $sql];
                 continue;
             }
+
+            $preparedSql = $this->prepareStatementForCompatibility($pdo, $sql);
+            if ($preparedSql === null) {
+                $skipped++;
+                continue;
+            }
+
             try {
-                $pdo->exec($sql);
+                $this->executeStatement($pdo, $preparedSql);
                 $applied++;
             } catch (\Throwable $e) {
                 if ($this->shouldIgnorePdoException($e)) {
                     $skipped++;
                     continue;
                 }
-                throw new \RuntimeException('Falha no statement #' . ($i + 1) . ': ' . $e->getMessage() . "\n" . $sql, 0, $e);
+                if (is_callable($logger)) {
+                    $logger('statement_error', [
+                        'statement_index' => $i + 1,
+                        'statement_preview' => substr(trim($preparedSql), 0, 500),
+                    ], $e);
+                }
+                throw new \RuntimeException('Falha no statement #' . ($i + 1) . ': ' . $e->getMessage() . "\n" . $preparedSql, 0, $e);
             }
         }
 
@@ -297,6 +327,17 @@ final class DbUpgradeRunner
 
         $inspect = $this->inspect($pdo);
         if ($inspect['pending']) {
+            if (is_callable($logger)) {
+                $logger('finish_pending', [
+                    'applied' => $applied,
+                    'skipped' => $skipped,
+                    'ensured_added' => $ensAdded,
+                    'ensured_skipped' => $ensSkipped,
+                    'adjusted_applied' => $modApplied,
+                    'adjusted_skipped' => $modSkipped,
+                    'inspect' => $inspect,
+                ]);
+            }
             return [
                 'ok' => false,
                 'applied' => $applied,
@@ -307,6 +348,18 @@ final class DbUpgradeRunner
                 'adjusted_skipped' => $modSkipped,
                 'inspect' => $inspect,
             ];
+        }
+
+        if (is_callable($logger)) {
+            $logger('finish_ok', [
+                'applied' => $applied,
+                'skipped' => $skipped,
+                'ensured_added' => $ensAdded,
+                'ensured_skipped' => $ensSkipped,
+                'adjusted_applied' => $modApplied,
+                'adjusted_skipped' => $modSkipped,
+                'inspect' => $inspect,
+            ]);
         }
 
         return [
@@ -323,16 +376,43 @@ final class DbUpgradeRunner
 
     private function splitSqlStatements(string $sql): array
     {
-        $sql = (string) preg_replace('/^\s*--.*$/m', '', $sql);
-        $parts = preg_split('/;\s*\n/', $sql) ?: [];
-        $out = [];
-        foreach ($parts as $p) {
-            $p = trim((string) $p);
-            if ($p !== '') {
-                $out[] = $p;
-            }
+        return (new SqlScriptParser())->split($sql);
+    }
+
+    private function prepareStatementForCompatibility(\PDO $pdo, string $sql): ?string
+    {
+        $trimmed = trim($sql);
+        if (preg_match('/^ALTER\s+TABLE\s+`?([a-zA-Z0-9_]+)`?\s+ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+`?([a-zA-Z0-9_]+)`?\s+/i', $trimmed, $matches) !== 1) {
+            return $trimmed;
         }
-        return $out;
+
+        $table = (string) ($matches[1] ?? '');
+        $column = (string) ($matches[2] ?? '');
+        if ($table === '' || $column === '') {
+            return $trimmed;
+        }
+
+        if ($this->hasColumn($pdo, $table, $column)) {
+            return null;
+        }
+
+        return preg_replace('/\bADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\b/i', 'ADD COLUMN', $trimmed, 1) ?: $trimmed;
+    }
+
+    private function executeStatement(\PDO $pdo, string $sql): void
+    {
+        $stmt = $pdo->prepare($sql);
+        if (!$stmt instanceof \PDOStatement) {
+            throw new \RuntimeException('Falha ao preparar statement SQL.');
+        }
+
+        $stmt->execute();
+        do {
+            if ($stmt->columnCount() > 0) {
+                $stmt->fetchAll();
+            }
+        } while ($stmt->nextRowset());
+        $stmt->closeCursor();
     }
 
     private function explodeAlterAddColumns(string $sql): ?array
@@ -372,7 +452,7 @@ final class DbUpgradeRunner
             return false;
         }
         $err = $e->errorInfo[1] ?? null;
-        $ignore = [1050, 1060, 1061, 1062, 1091, 1826];
+        $ignore = [1007, 1050, 1060, 1061, 1062, 1091, 1359, 1826];
         return is_int($err) && in_array($err, $ignore, true);
     }
 

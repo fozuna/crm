@@ -5,6 +5,7 @@ require __DIR__ . '/../app/bootstrap.php';
 
 use App\Core\DB;
 use App\Repositories\AuditLogRepository;
+use App\Services\DbLifecycleLogger;
 use App\Services\DbUpgradeRunner;
 
 $jobId = (string) ($argv[1] ?? '');
@@ -30,7 +31,13 @@ $res = null;
 $err = null;
 
 try {
-    $res = $runner->run(DB::pdo());
+    $logger = new DbLifecycleLogger();
+    $res = $runner->run(DB::pdo(), static function (string $event, array $context = [], ?\Throwable $exception = null) use ($logger, $jobId): void {
+        $logger->write('worker_db_upgrade_' . $event, [
+            'job_id' => $jobId,
+            'context' => $context,
+        ], $exception);
+    });
 } catch (Throwable $e) {
     $err = (string) $e;
 }
@@ -50,4 +57,3 @@ $job['error'] = $err;
 ]);
 
 exit($job['status'] === 'done' ? 0 : 1);
-

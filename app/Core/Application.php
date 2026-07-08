@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Core;
 
+use App\Services\DbStartupGuard;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\AdminMiddleware;
 use App\Middleware\CsrfMiddleware;
@@ -19,6 +20,10 @@ final class Application
     public function run(): void
     {
         $request = new Request();
+
+        if ($this->shouldEnforceDatabaseGuard($request)) {
+            (new DbStartupGuard())->enforce();
+        }
 
         if (!$this->isInstalled() && !$this->hasMinimumConfig() && $request->path() !== '/install') {
             Response::redirect($this->url('/install', $request));
@@ -67,5 +72,18 @@ final class Application
     {
         $base = $request->basePath();
         return rtrim($base, '/') . '/' . ltrim($path, '/');
+    }
+
+    private function shouldEnforceDatabaseGuard(Request $request): bool
+    {
+        if (!(bool) Config::get('DB_REQUIRE_SYNC_BEFORE_RUN', true)) {
+            return false;
+        }
+
+        if (!$this->hasMinimumConfig()) {
+            return false;
+        }
+
+        return $request->path() !== '/install';
     }
 }

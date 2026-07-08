@@ -16,6 +16,7 @@ use App\Repositories\ServiceOrderRepository;
 use App\Repositories\ServiceRepository;
 use App\Repositories\UserListRepository;
 use App\Services\ServiceOrderAttachmentUploadService;
+use App\Services\ServiceOrderApprovalService;
 use App\Services\ServiceOrderPdfGenerator;
 use App\Services\ServiceOrderService;
 use App\Services\ServiceOrderStatus;
@@ -54,6 +55,7 @@ final class ServiceOrderController
             'services' => (new ServiceRepository())->activeList(false),
             'attachments' => [],
             'history' => [],
+            'approvalSummary' => null,
             'statusOptions' => ServiceOrderStatus::all(),
             'typeOptions' => ServiceOrderType::all(),
             'isEdit' => false,
@@ -81,6 +83,7 @@ final class ServiceOrderController
                 'services' => (new ServiceRepository())->activeList(false),
                 'attachments' => [],
                 'history' => [],
+                'approvalSummary' => null,
                 'statusOptions' => ServiceOrderStatus::all(),
                 'typeOptions' => ServiceOrderType::all(),
                 'isEdit' => false,
@@ -114,6 +117,7 @@ final class ServiceOrderController
             'services' => (new ServiceRepository())->activeList(false),
             'attachments' => (new ServiceOrderAttachmentRepository())->listByServiceOrder($id),
             'history' => (new ServiceOrderHistoryRepository())->listByServiceOrder($id),
+            'approvalSummary' => (new ServiceOrderApprovalService())->approvalSummaryForOrder($id),
             'statusOptions' => ServiceOrderStatus::all(),
             'typeOptions' => ServiceOrderType::all(),
             'isEdit' => true,
@@ -149,6 +153,7 @@ final class ServiceOrderController
                 'services' => (new ServiceRepository())->activeList(false),
                 'attachments' => (new ServiceOrderAttachmentRepository())->listByServiceOrder($id),
                 'history' => (new ServiceOrderHistoryRepository())->listByServiceOrder($id),
+                'approvalSummary' => (new ServiceOrderApprovalService())->approvalSummaryForOrder($id),
                 'statusOptions' => ServiceOrderStatus::all(),
                 'typeOptions' => ServiceOrderType::all(),
                 'isEdit' => true,

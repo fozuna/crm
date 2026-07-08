@@ -16,6 +16,9 @@ final class ProposalPdfGenerator
     private array $textBody = [26, 26, 26];
     private array $textHeading = [17, 24, 39];
     private array $divider = [107, 114, 128];
+    private array $surface = [248, 250, 252];
+    private array $surfaceStrong = [241, 245, 249];
+    private array $border = [203, 213, 225];
     private float $fontScale = 1.0;
 
     private int $footerLogoW = 0;
@@ -29,17 +32,17 @@ final class ProposalPdfGenerator
     private int $contentW;
     private int $yTop;
     private int $yBottom;
-    private int $headerH = 54;
-    private int $footerReserve = 170;
+    private int $headerH = 56;
+    private int $footerReserve = 112;
 
     public function build(array $branding, array $proposal, array $items, array $milestones, array $paymentOptions, int $selectedIndex): string
     {
         $this->branding = $branding;
-        $this->margin = (int) round(72);
+        $this->margin = 64;
         $this->x0 = $this->margin;
         $this->x1 = $this->pageW - $this->margin;
         $this->contentW = $this->x1 - $this->x0;
-        $this->yBottom = $this->margin;
+        $this->yBottom = 56;
 
         $pdf = new ProfessionalPdf();
         $pdf->addPage();
@@ -114,6 +117,7 @@ final class ProposalPdfGenerator
             32
         );
         $this->applyBodyText($pdf);
+        $this->setFontScaled($pdf, 'F1', 10);
     }
 
     private function computeFooterLogo(): void
@@ -143,12 +147,12 @@ final class ProposalPdfGenerator
 
     private function heroCard(ProfessionalPdf $pdf, int $y, array $proposal, string $issueDate): int
     {
-        $y = $this->ensureBlock($pdf, $y, $this->sp(190));
-        $boxH = $this->sp(96);
+        $y = $this->ensureBlock($pdf, $y, $this->sp(150));
+        $boxH = $this->sp(104);
         $top = $y;
-        $rightBoxW = 148;
+        $rightBoxW = 156;
         $rightX = $this->x1 - $rightBoxW;
-        $subtitleLines = $this->wrapPreserveNewlines('Documento comercial padronizado para apresentação, negociação e aprovação da solução proposta.', 54);
+        $subtitleLines = $this->wrapLine('Documento comercial padronizado para apresentação, negociação e aprovação da solução proposta.', 54);
 
         $pdf->setFillColor($this->primary[0], $this->primary[1], $this->primary[2]);
         $pdf->rect($this->x0, $top - $boxH, $this->contentW, $boxH, 'F');
@@ -161,44 +165,48 @@ final class ProposalPdfGenerator
         }
 
         $pdf->setStrokeColor(255, 255, 255);
-        $pdf->rect($rightX, $top - 72, $rightBoxW, 50, 'S');
+        $pdf->rect($rightX, $top - 78, $rightBoxW, 54, 'S');
         $this->setFontScaled($pdf, 'F2', 11);
         $pdf->text($rightX + 12, $top - 42, 'Proposta #' . (int) ($proposal['id'] ?? 0));
         $this->setFontScaled($pdf, 'F1', 10);
         $pdf->text($rightX + 12, $top - 58, 'Data: ' . $issueDate);
 
-        return $top - $boxH - 18;
+        return $top - $boxH - 14;
     }
 
     private function initialDataBox(ProfessionalPdf $pdf, int $y, int $proposalId, string $clientName, string $issueDate): int
     {
-        $labelW = 88;
-        $clientLines = $this->wrapPreserveNewlines($clientName, 64);
+        $labelW = 72;
+        $clientLines = $this->wrapLine($clientName, 42);
         $clientLines = array_values(array_filter($clientLines, static fn($l) => $l !== ''));
         if (count($clientLines) === 0) {
-            $clientLines = [''];
+            $clientLines = ['Não informado'];
         }
 
         $lineH = $this->sp(16);
-        $gap = $this->sp(10);
-        $pad = $this->sp(16);
+        $gap = $this->sp(6);
+        $pad = $this->sp(14);
         $totalLines = 1 + count($clientLines) + 1;
-        $boxH = ($pad * 2) + ($totalLines * $lineH) + (2 * $gap);
+        $boxH = ($pad * 2) + ($totalLines * $lineH) + (2 * $gap) + 18;
 
-        $y = $this->ensureBlock($pdf, $y, $this->sp($boxH + 36));
+        $y = $this->ensureBlock($pdf, $y, $this->sp($boxH + 24));
         $yTop = $y;
         $yBoxBottom = $yTop - $boxH;
 
-        $this->applyDividerStroke($pdf);
+        $pdf->setFillColor($this->surface[0], $this->surface[1], $this->surface[2]);
+        $pdf->setStrokeColor($this->border[0], $this->border[1], $this->border[2]);
         $pdf->setLineWidth(0.6);
-        $pdf->line($this->x0, $yTop, $this->x1, $yTop);
-        $pdf->line($this->x0, $yTop - 2, $this->x1, $yTop - 2);
-        $pdf->line($this->x0, $yBoxBottom, $this->x1, $yBoxBottom);
-        $pdf->line($this->x0, $yBoxBottom + 2, $this->x1, $yBoxBottom + 2);
+        $pdf->rect($this->x0, $yBoxBottom, $this->contentW, $boxH, 'DF');
+        $pdf->setStrokeColor($this->border[0], $this->border[1], $this->border[2]);
+        $pdf->line($this->x0 + 16, $yTop - 28, $this->x1 - 16, $yTop - 28);
 
-        $x = $this->x0 + 12;
+        $pdf->setFillColor($this->primary[0], $this->primary[1], $this->primary[2]);
+        $this->setFontScaled($pdf, 'F2', 12);
+        $pdf->text($this->x0 + 16, $yTop - 18, 'Identificação');
+
+        $x = $this->x0 + 16;
         $xVal = $x + $labelW;
-        $curY = $yTop - $pad - $this->sp(2);
+        $curY = $yTop - 44;
 
         $curY = $this->kvLine($pdf, $x, $xVal, $curY, 'Proposta:', '#' . $proposalId);
         $curY -= $gap;
@@ -219,136 +227,134 @@ final class ProposalPdfGenerator
 
         $this->kvLine($pdf, $x, $xVal, $curY, 'Data:', $issueDate);
 
-        return $yBoxBottom - $this->sp(24);
+        return $yBoxBottom - $this->sp(14);
     }
 
     private function sectionSeparator(ProfessionalPdf $pdf, int $y): int
     {
-        $y -= $this->sp(6);
-        $y = $this->ensureBlock($pdf, $y, $this->sp(40));
+        $y -= $this->sp(4);
+        $y = $this->ensureBlock($pdf, $y, $this->sp(22));
         $this->applyDividerStroke($pdf);
         $pdf->setLineWidth(0.6);
         $pdf->line($this->x0, $y, $this->x1, $y);
-        return $y - $this->sp(18);
+        return $y - $this->sp(12);
     }
 
     private function fieldBlock(ProfessionalPdf $pdf, int $y, string $title, string $body): int
     {
-        $lines = $this->wrapPreserveNewlines($body, 95);
-        $nonEmpty = count(array_filter($lines, static fn($l) => $l !== ''));
-        $minLines = min(3, max(1, $nonEmpty));
-        $needed = $this->sp(14 + 14 + (12 * $minLines) + 24);
-        $y = $this->ensureBlock($pdf, $y, $needed);
+        $segments = $this->buildTextSegments($body);
+        $y = $this->ensureBlock($pdf, $y, $this->sp(92));
 
         $this->applyHeadingText($pdf);
         $this->setFontScaled($pdf, 'F2', 12);
         $pdf->text($this->x0, $y, $title);
-        $y -= $this->sp(14);
+        $y -= $this->sp(16);
 
-        $this->applyBodyText($pdf);
-        $this->setFontScaled($pdf, 'F1', 11);
-        $justify = count(array_filter($lines, static fn($l) => $l !== '')) > 3;
-
-        foreach ($lines as $line) {
-            $y = $this->ensureBlock($pdf, $y, $this->sp(70));
-            if ($line === '') {
-                $y -= $this->sp(12);
-                continue;
-            }
-
-            if ($justify && str_contains($line, ' ')) {
-                $ws = $this->justifyWordSpacing($line, 11, $this->contentW);
-                $pdf->text($this->x0, $y, $line, $ws);
-            } else {
-                $pdf->text($this->x0, $y, $line);
-            }
-            $y -= $this->sp(12);
-        }
-
-        return $y - $this->sp(24);
+        $y = $this->renderTextSegments($pdf, $y, $segments, 74, 16, 8);
+        return $y - $this->sp(6);
     }
 
     private function block(ProfessionalPdf $pdf, int $y, string $title, string $body): int
     {
-        $y = $this->ensureBlock($pdf, $y, $this->sp(120));
-        $this->applyHeadingText($pdf);
-        $this->setFontScaled($pdf, 'F2', 12);
-        $pdf->text($this->x0, $y, $title);
-        $y -= $this->sp(14);
-        $this->applyBodyText($pdf);
-        $this->setFontScaled($pdf, 'F1', 11);
-        foreach ($this->wrapPreserveNewlines($body, 90) as $line) {
-            $y = $this->ensureBlock($pdf, $y, $this->sp(70));
-            if ($line === '') {
-                $y -= $this->sp(12);
-                continue;
-            }
-            $pdf->text($this->x0, $y, $line);
-            $y -= $this->sp(12);
-        }
-        return $y - $this->sp(10);
+        return $this->fieldBlock($pdf, $y, $title, $body);
     }
 
     private function itemsTable(ProfessionalPdf $pdf, int $y, array $items): int
     {
-        $y = $this->ensureBlock($pdf, $y, $this->sp(140));
+        $y = $this->ensureBlock($pdf, $y, $this->sp(120));
         $this->applyHeadingText($pdf);
         $this->setFontScaled($pdf, 'F2', 12);
         $pdf->text($this->x0, $y, 'Serviços');
-        $y -= $this->sp(24);
+        $y -= $this->sp(18);
 
-        $this->setFontScaled($pdf, 'F2', 12);
-        $pdf->text($this->x0, $y, 'Descrição');
-        $pdf->text($this->x0 + 300, $y, 'Qtd');
-        $pdf->text($this->x0 + 350, $y, 'Valor');
-        $pdf->text($this->x0 + 430, $y, 'Total');
-        $y -= $this->sp(8);
-        $this->applyDividerStroke($pdf);
-        $pdf->setLineWidth(0.6);
-        $pdf->line($this->x0, $y, $this->x1, $y);
-        $y -= $this->sp(16);
+        $descW = 258;
+        $qtyW = 44;
+        $unitW = 72;
+        $totalW = $this->contentW - $descW - $qtyW - $unitW;
 
+        $drawHeader = function (int $headerTop) use ($pdf, $descW, $qtyW, $unitW, $totalW): int {
+            $pdf->setFillColor($this->surfaceStrong[0], $this->surfaceStrong[1], $this->surfaceStrong[2]);
+            $pdf->setStrokeColor($this->border[0], $this->border[1], $this->border[2]);
+            $pdf->rect($this->x0, $headerTop - 26, $this->contentW, 26, 'DF');
+            $this->applyHeadingText($pdf);
+            $this->setFontScaled($pdf, 'F2', 10);
+            $pdf->text($this->x0 + 8, $headerTop - 17, 'Descrição');
+            $pdf->text($this->x0 + $descW + 8, $headerTop - 17, 'Qtd');
+            $pdf->text($this->x0 + $descW + $qtyW + 8, $headerTop - 17, 'Valor');
+            $pdf->text($this->x0 + $descW + $qtyW + $unitW + 8, $headerTop - 17, 'Total');
+            return $headerTop - 26;
+        };
+
+        $currentY = $drawHeader($y);
+        if (count($items) === 0) {
+            $items = [[
+                'description' => 'Nenhum item informado.',
+                'qty' => '',
+                'unit_price' => '',
+                'total' => '',
+                'is_bonus' => 0,
+            ]];
+        }
+
+        $rowIndex = 0;
         foreach ($items as $it) {
-            $y = $this->ensureBlock($pdf, $y, $this->sp(90));
             $desc = (string) ($it['description'] ?? '');
             if ((int) ($it['is_bonus'] ?? 0) === 1) {
                 $desc = '[BÔNUS] ' . $desc;
             }
-            $lines = $this->wrapPreserveNewlines($desc, 60);
-            $qty = (float) ($it['qty'] ?? 0);
-            $unit = (float) ($it['unit_price'] ?? 0);
-            $tot = (float) ($it['total'] ?? 0);
-            $this->applyBodyText($pdf);
-            $this->setFontScaled($pdf, 'F1', 11);
-            $pdf->text($this->x0, $y, $lines[0] ?? '');
-            $pdf->text($this->x0 + 300, $y, (string) $qty);
-            $pdf->text($this->x0 + 350, $y, $this->brl($unit));
-            $pdf->text($this->x0 + 430, $y, $this->brl($tot));
-            $y -= $this->sp(12);
-            for ($i = 1; $i < count($lines); $i++) {
-                $y = $this->ensureBlock($pdf, $y, $this->sp(70));
-                if ($lines[$i] === '') {
-                    $y -= $this->sp(12);
-                    continue;
-                }
-                $pdf->text($this->x0, $y, $lines[$i]);
-                $y -= $this->sp(12);
+            $lines = $this->wrapLine($desc !== '' ? $desc : '—', 42);
+            $qty = trim((string) ($it['qty'] ?? ''));
+            $unit = $it['unit_price'] === '' ? '' : $this->brl((float) ($it['unit_price'] ?? 0));
+            $tot = $it['total'] === '' ? '' : $this->brl((float) ($it['total'] ?? 0));
+            $rowH = 14 + (count($lines) * 14);
+            if (($currentY - $rowH) < ($this->yBottom + $this->footerReserve + 20)) {
+                $pdf->addPage();
+                $this->renderHeader($pdf);
+                $currentY = $this->yTop;
+                $this->applyHeadingText($pdf);
+                $this->setFontScaled($pdf, 'F2', 12);
+                $pdf->text($this->x0, $currentY, 'Serviços (continuação)');
+                $currentY -= $this->sp(18);
+                $currentY = $drawHeader($currentY);
             }
-            $y -= $this->sp(6);
+
+            $fill = ($rowIndex % 2 === 0) ? [255, 255, 255] : $this->surface;
+            $pdf->setFillColor($fill[0], $fill[1], $fill[2]);
+            $pdf->setStrokeColor($this->border[0], $this->border[1], $this->border[2]);
+            $pdf->rect($this->x0, $currentY - $rowH, $this->contentW, $rowH, 'DF');
+            $this->applyBodyText($pdf);
+            $this->setFontScaled($pdf, 'F1', 10);
+            $lineY = $currentY - 17;
+            $pdf->text($this->x0 + 8, $lineY, $lines[0] ?? '—');
+            if ($qty !== '') {
+                $this->rightAlignedText($pdf, $this->x0 + $descW + $qtyW - 8, $lineY, $qty, 'F1', 10);
+            }
+            if ($unit !== '') {
+                $this->rightAlignedText($pdf, $this->x0 + $descW + $qtyW + $unitW - 8, $lineY, $unit, 'F1', 10);
+            }
+            if ($tot !== '') {
+                $this->rightAlignedText($pdf, $this->x1 - 8, $lineY, $tot, 'F1', 10);
+            }
+            for ($i = 1; $i < count($lines); $i++) {
+                $lineY -= $this->sp(14);
+                $pdf->text($this->x0 + 8, $lineY, $lines[$i]);
+            }
+            $currentY -= $rowH;
+            $rowIndex++;
         }
 
-        return $y - $this->sp(6);
+        return $currentY - $this->sp(14);
     }
 
     private function financialSummary(ProfessionalPdf $pdf, int $y, array $proposal, array $paymentOptions, int $selectedIndex): int
     {
-        $y = $this->ensureBlock($pdf, $y, $this->sp(160));
+        $y = $this->ensureBlock($pdf, $y, $this->sp(120));
         $this->applyHeadingText($pdf);
         $this->setFontScaled($pdf, 'F2', 12);
         $pdf->text($this->x0, $y, 'Resumo financeiro');
-        $y -= $this->sp(24);
+        $y -= $this->sp(18);
         $this->applyBodyText($pdf);
-        $this->setFontScaled($pdf, 'F1', 11);
+        $this->setFontScaled($pdf, 'F1', 10);
 
         $subtotal = (float) ($proposal['subtotal'] ?? 0);
         $discountP = (float) ($proposal['discount_percent'] ?? 0);
@@ -356,13 +362,13 @@ final class ProposalPdfGenerator
         $total = (float) ($proposal['total'] ?? 0);
 
         $pdf->text($this->x0, $y, 'Subtotal: ' . $this->brl($subtotal));
-        $y -= $this->sp(12);
+        $y -= $this->sp(14);
         $pdf->text($this->x0, $y, 'Desconto (' . number_format($discountP, 2, ',', '.') . '%): ' . $this->brl($discountA));
-        $y -= $this->sp(12);
+        $y -= $this->sp(14);
         $this->setFontScaled($pdf, 'F2', 12);
         $pdf->text($this->x0, $y, 'Total: ' . $this->brl($total));
         $this->applyBodyText($pdf);
-        $this->setFontScaled($pdf, 'F1', 11);
+        $this->setFontScaled($pdf, 'F1', 10);
         $y -= $this->sp(14);
 
         if (!is_array($paymentOptions) || count($paymentOptions) === 0) {
@@ -383,15 +389,15 @@ final class ProposalPdfGenerator
             $optTotal = isset($opt['total']) ? (float) $opt['total'] : $total;
             $tag = ($idx === $selectedIndex) ? ' (principal)' : '';
 
-            $y = $this->ensureBlock($pdf, $y, $this->sp(110));
+            $y = $this->ensureBlock($pdf, $y, $this->sp(92));
             $this->applyHeadingText($pdf);
-            $this->setFontScaled($pdf, 'F2', 12);
+            $this->setFontScaled($pdf, 'F2', 10);
             $pdf->text($this->x0, $y, 'Forma de pagamento ' . ($idx + 1) . $tag);
             $y -= $this->sp(14);
             $this->applyBodyText($pdf);
-            $this->setFontScaled($pdf, 'F1', 11);
+            $this->setFontScaled($pdf, 'F1', 10);
             $pdf->text($this->x0, $y, $label);
-            $y -= $this->sp(24);
+            $y -= $this->sp(14);
             $pdf->text($this->x0, $y, 'Valor: ' . $this->brl($optTotal));
             $y -= $this->sp(14);
 
@@ -407,36 +413,37 @@ final class ProposalPdfGenerator
                 $no = (int) ($row['no'] ?? 0);
                 $pLabel = $kind === 'entrada' ? 'Entrada' : ($kind === 'avista' ? 'À vista' : ('Parcela ' . $no));
                 $amount = (float) ($row['amount'] ?? 0);
-                $y = $this->ensureBlock($pdf, $y, $this->sp(70));
+                $y = $this->ensureBlock($pdf, $y, $this->sp(56));
                 $pdf->text($this->x0 + 12, $y, $pLabel . ' (' . $due . '): ' . $this->brl($amount));
-                $y -= $this->sp(12);
+                $y -= $this->sp(14);
             }
 
             $special = trim((string) ($snap['special_terms'] ?? ''));
             if ($special !== '') {
-                $y = $this->block($pdf, $y - $this->sp(4), 'Condições especiais (opção ' . ($idx + 1) . ')', $special);
+                $y = $this->block($pdf, $y - $this->sp(2), 'Condições especiais (opção ' . ($idx + 1) . ')', $special);
             }
+            $y -= $this->sp(4);
         }
 
-        return $y - 6;
+        return $y - 10;
     }
 
     private function deliveryBlock(ProfessionalPdf $pdf, int $y, array $proposal, array $milestones): int
     {
-        $y = $this->ensureBlock($pdf, $y, $this->sp(160));
+        $y = $this->ensureBlock($pdf, $y, $this->sp(110));
         $this->applyHeadingText($pdf);
         $this->setFontScaled($pdf, 'F2', 12);
         $pdf->text($this->x0, $y, 'Prazos de entrega');
-        $y -= $this->sp(24);
+        $y -= $this->sp(18);
         $this->applyBodyText($pdf);
-        $this->setFontScaled($pdf, 'F1', 11);
+        $this->setFontScaled($pdf, 'F1', 10);
 
         $start = (string) ($proposal['delivery_start'] ?? '');
         $end = (string) ($proposal['delivery_end'] ?? '');
-        $startTxt = $start !== '' ? date('d/m/Y', strtotime($start)) : '—';
-        $endTxt = $end !== '' ? date('d/m/Y', strtotime($end)) : '—';
+        $startTxt = $start !== '' ? date('d/m/Y', strtotime($start)) : 'Não informado';
+        $endTxt = $end !== '' ? date('d/m/Y', strtotime($end)) : 'Não informado';
         $pdf->text($this->x0, $y, 'Início estimado: ' . $startTxt);
-        $y -= $this->sp(12);
+        $y -= $this->sp(14);
         $pdf->text($this->x0, $y, 'Término estimado: ' . $endTxt);
         $y -= $this->sp(14);
 
@@ -446,18 +453,18 @@ final class ProposalPdfGenerator
                 continue;
             }
             $due = (string) ($m['due_date'] ?? '');
-            $dueTxt = $due !== '' ? date('d/m/Y', strtotime($due)) : '—';
-            $y = $this->ensureBlock($pdf, $y, $this->sp(70));
+            $dueTxt = $due !== '' ? date('d/m/Y', strtotime($due)) : 'Não informado';
+            $y = $this->ensureBlock($pdf, $y, $this->sp(56));
             $pdf->text($this->x0 + 12, $y, 'Marco: ' . $title . ' (' . $dueTxt . ')');
-            $y -= $this->sp(12);
+            $y -= $this->sp(14);
         }
 
         $penalty = trim((string) ($proposal['penalty_terms'] ?? ''));
         if ($penalty !== '') {
-            $y = $this->block($pdf, $y - $this->sp(6), 'Penalidades por atraso', $penalty);
+            $y = $this->block($pdf, $y - $this->sp(2), 'Penalidades por atraso', $penalty);
         }
 
-        return $y - 6;
+        return $y - 10;
     }
 
     private function termsBlock(ProfessionalPdf $pdf, int $y, string $terms, string $notes): int
@@ -480,16 +487,16 @@ final class ProposalPdfGenerator
 
     private function footerBlock(ProfessionalPdf $pdf, int $y, string $issueDate): void
     {
-        $minY = $this->yBottom + $this->footerReserve + 20;
+        $minY = $this->yBottom + $this->footerReserve;
         if ($y < $minY) {
             $pdf->addPage();
             $this->renderHeader($pdf);
         }
 
         $this->applyBodyText($pdf);
-        $this->setFontScaled($pdf, 'F1', 11);
-        $pdf->text($this->x0, $this->yBottom + $this->sp(120), 'Campo Grande, MS - ' . $issueDate);
-        $pdf->text($this->x0, $this->yBottom + $this->sp(104), '"Proposta válida por 30 dias"');
+        $this->setFontScaled($pdf, 'F1', 10);
+        $pdf->text($this->x0, $this->yBottom + $this->sp(92), 'Campo Grande, MS - ' . $issueDate);
+        $pdf->text($this->x0, $this->yBottom + $this->sp(78), 'Proposta válida por 30 dias.');
 
         $this->applyDividerStroke($pdf);
         $pdf->setLineWidth(0.6);
@@ -500,7 +507,7 @@ final class ProposalPdfGenerator
         $rightEnd = $this->x1;
 
         $inset = 12;
-        $lineY = $this->yBottom + $this->sp(72);
+        $lineY = $this->yBottom + $this->sp(52);
         $pdf->line($leftStart + $inset, $lineY, $leftEnd - $inset, $lineY);
         $pdf->line($rightStart + $inset, $lineY, $rightEnd - $inset, $lineY);
 
@@ -509,10 +516,10 @@ final class ProposalPdfGenerator
         $rightCx = (int) floor(($rightStart + $rightEnd) / 2);
 
         $this->applyBodyText($pdf);
-        $this->centerText($pdf, $leftCx, $labelY, 'Assinatura do cliente', 'F1', 11);
+        $this->centerText($pdf, $leftCx, $labelY, 'Assinatura do cliente', 'F1', 10);
 
-        $this->centerText($pdf, $rightCx, $labelY, 'TRAXTER. Automações e Sistemas', 'F1', 11);
-        $this->centerText($pdf, $rightCx, $labelY - $this->sp(12), '30.358.115/0001-13', 'F1', 11);
+        $this->centerText($pdf, $rightCx, $labelY, 'TRAXTER. Automações e Sistemas', 'F1', 10);
+        $this->centerText($pdf, $rightCx, $labelY - $this->sp(11), '30.358.115/0001-13', 'F1', 10);
     }
 
     private function rgbToHex(array $rgb): string
@@ -685,6 +692,15 @@ final class ProposalPdfGenerator
         $pdf->text($x, $y, $text);
     }
 
+    private function rightAlignedText(ProfessionalPdf $pdf, int $rightX, int $y, string $text, string $fontKey, int $size): void
+    {
+        $scaled = $this->scaleFont($size);
+        $pdf->setFont($fontKey, $scaled);
+        $w = $this->approxTextWidth($text, $scaled);
+        $x = (int) floor($rightX - $w);
+        $pdf->text(max($this->x0, $x), $y, $text);
+    }
+
     private function formatCnpj(string $raw): string
     {
         $d = preg_replace('/\D+/', '', $raw);
@@ -736,6 +752,149 @@ final class ProposalPdfGenerator
         return $out;
     }
 
+    private function wrapLine(string $text, int $maxLen): array
+    {
+        $text = trim(preg_replace('/\s+/', ' ', str_replace(["\r\n", "\r", "\n"], ' ', $text)) ?? '');
+        if ($text === '') {
+            return [''];
+        }
+
+        $words = preg_split('/\s+/', $text) ?: [];
+        $out = [];
+        $line = '';
+        foreach ($words as $word) {
+            $word = (string) $word;
+            $test = $line === '' ? $word : ($line . ' ' . $word);
+            if (mb_strlen($test) > $maxLen) {
+                if ($line !== '') {
+                    $out[] = $line;
+                }
+                $line = $word;
+                continue;
+            }
+            $line = $test;
+        }
+        if ($line !== '') {
+            $out[] = $line;
+        }
+
+        return count($out) > 0 ? $out : [''];
+    }
+
+    private function buildTextSegments(string $text): array
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return [['type' => 'paragraph', 'text' => 'Não informado']];
+        }
+
+        $text = str_replace("\r\n", "\n", $text);
+        $text = str_replace("\r", "\n", $text);
+        $lines = explode("\n", $text);
+        $segments = [];
+        $paragraph = '';
+
+        foreach ($lines as $rawLine) {
+            $line = trim((string) $rawLine);
+            if ($line === '') {
+                if ($paragraph !== '') {
+                    $segments[] = ['type' => 'paragraph', 'text' => $paragraph];
+                    $paragraph = '';
+                }
+                continue;
+            }
+
+            if ($this->isHeadingLine($line)) {
+                if ($paragraph !== '') {
+                    $segments[] = ['type' => 'paragraph', 'text' => $paragraph];
+                    $paragraph = '';
+                }
+                $segments[] = ['type' => 'heading', 'text' => $line];
+                continue;
+            }
+
+            if ($this->isListLine($line)) {
+                if ($paragraph !== '') {
+                    $segments[] = ['type' => 'paragraph', 'text' => $paragraph];
+                    $paragraph = '';
+                }
+                $segments[] = ['type' => 'list', 'text' => $line];
+                continue;
+            }
+
+            $paragraph = $paragraph === '' ? $line : ($paragraph . ' ' . $line);
+        }
+
+        if ($paragraph !== '') {
+            $segments[] = ['type' => 'paragraph', 'text' => $paragraph];
+        }
+
+        return count($segments) > 0 ? $segments : [['type' => 'paragraph', 'text' => 'Não informado']];
+    }
+
+    private function renderTextSegments(
+        ProfessionalPdf $pdf,
+        int $y,
+        array $segments,
+        int $maxLen,
+        int $lineHeight,
+        int $paragraphGap
+    ): int {
+        foreach ($segments as $segment) {
+            $type = (string) ($segment['type'] ?? 'paragraph');
+            $text = trim((string) ($segment['text'] ?? ''));
+            if ($text === '') {
+                continue;
+            }
+
+            $indent = $type === 'list' ? 12 : 0;
+            $localMaxLen = $type === 'paragraph' ? $maxLen : max(24, $maxLen - 4);
+            $lines = $this->wrapLine($text, $localMaxLen);
+
+            if ($type === 'heading') {
+                $this->applyHeadingText($pdf);
+                $this->setFontScaled($pdf, 'F2', 10);
+            } else {
+                $this->applyBodyText($pdf);
+                $this->setFontScaled($pdf, 'F1', 10);
+            }
+
+            foreach ($lines as $index => $line) {
+                $y = $this->ensureBlock($pdf, $y, $this->sp($lineHeight + 18));
+                $isJustifiedParagraph = $type === 'paragraph' && $index < (count($lines) - 1) && str_contains($line, ' ');
+                if ($isJustifiedParagraph) {
+                    $ws = $this->justifyWordSpacing($line, 10, $this->contentW - $indent);
+                    $pdf->text($this->x0 + $indent, $y, $line, $ws);
+                } else {
+                    $pdf->text($this->x0 + $indent, $y, $line);
+                }
+                $y -= $this->sp($lineHeight);
+            }
+
+            $y -= $this->sp($type === 'heading' ? 4 : $paragraphGap);
+        }
+
+        return $y;
+    }
+
+    private function isHeadingLine(string $line): bool
+    {
+        if (mb_strlen($line) > 48) {
+            return false;
+        }
+
+        if (preg_match('/[a-zà-ÿ]/u', $line) === 1) {
+            return false;
+        }
+
+        return preg_match('/[A-ZÀ-Ý]/u', $line) === 1;
+    }
+
+    private function isListLine(string $line): bool
+    {
+        return preg_match('/^(?:[-*•·]|[0-9]+[.)]|[A-Za-z][.)]|[▪◦])\s+/u', $line) === 1;
+    }
+
     private function brl(float $n): string
     {
         return 'R$ ' . number_format($n, 2, ',', '.');
@@ -760,7 +919,10 @@ final class ProposalPdfGenerator
         $w = $this->approxTextWidth($line, $fontSize);
         $extra = max(0.0, $width - $w);
         $per = $extra / $spaces;
-        return max(0.0, min(3.0, $per));
+        if ($per < 0.12 || $per > 1.15) {
+            return 0.0;
+        }
+        return $per;
     }
 
     private function approxTextWidth(string $text, int $fontSize): float

@@ -10,6 +10,8 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Core\View;
 use App\Repositories\UserRepository;
+use App\Services\DbLifecycleLogger;
+use App\Services\DbSyncRunner;
 
 final class InstallController
 {
@@ -80,13 +82,9 @@ final class InstallController
 
         try {
             $pdo = DB::pdo();
-            $schema = file_get_contents(__DIR__ . '/../../database/schema.sql');
-            if (!is_string($schema) || trim($schema) === '') {
-                throw new \RuntimeException('Schema vazio.');
-            }
-            foreach ($this->splitSqlStatements($schema) as $sql) {
-                $pdo->exec($sql);
-            }
+            (new DbSyncRunner(logger: new DbLifecycleLogger()))->run($pdo, [
+                'environment' => 'install',
+            ]);
 
             $userRepo = new UserRepository();
             $userRepo->createAdmin($adminName, $adminEmail, $adminPass);
@@ -115,20 +113,6 @@ final class InstallController
             $lines[] = $k . '=' . $value;
         }
         return implode("\n", $lines) . "\n";
-    }
-
-    private function splitSqlStatements(string $schema): array
-    {
-        $schema = preg_replace('/^\s*--.*$/m', '', $schema);
-        $parts = preg_split('/;\s*\n/', (string) $schema);
-        $sql = [];
-        foreach ($parts as $p) {
-            $p = trim($p);
-            if ($p !== '') {
-                $sql[] = $p;
-            }
-        }
-        return $sql;
     }
 
     private function randomKey(): string

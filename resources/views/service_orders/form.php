@@ -9,6 +9,7 @@ $title = 'Ordem de Serviço';
 $serviceOrder = is_array($serviceOrder ?? null) ? $serviceOrder : [];
 $attachments = is_array($attachments ?? null) ? $attachments : [];
 $history = is_array($history ?? null) ? $history : [];
+$approvalSummary = is_array($approvalSummary ?? null) ? $approvalSummary : null;
 $isEdit = (bool) ($isEdit ?? false);
 $error = trim((string) ($error ?? ''));
 $id = (int) ($serviceOrder['id'] ?? 0);
@@ -19,6 +20,25 @@ $badgeClass = ServiceOrderStatus::badgeClass((string) ($serviceOrder['status'] ?
 $badgeLabel = ServiceOrderStatus::label((string) ($serviceOrder['status'] ?? ''));
 $toastType = trim((string) ($toastType ?? ''));
 $toastMessage = trim((string) ($toastMessage ?? ''));
+$approvalStatus = (string) ($approvalSummary['status'] ?? '');
+$canGenerateApproval = $isEdit && in_array((string) ($serviceOrder['status'] ?? ''), [ServiceOrderStatus::CONCLUIDO, ServiceOrderStatus::FATURADO], true);
+$formatDateTime = static function (?string $value): string {
+    $raw = trim((string) $value);
+    if ($raw === '') {
+        return 'Nao registrado';
+    }
+    $timestamp = strtotime($raw);
+    return $timestamp === false ? $raw : date('d/m/Y H:i', $timestamp);
+};
+$approvalStatusMap = [
+    'pendente' => ['label' => 'Pendente', 'class' => 'border-amber-200 bg-amber-50 text-amber-700'],
+    'aprovada' => ['label' => 'Aprovada', 'class' => 'border-emerald-200 bg-emerald-50 text-emerald-700'],
+    'ajustes_solicitados' => ['label' => 'Ajustes solicitados', 'class' => 'border-orange-200 bg-orange-50 text-orange-700'],
+    'expirada' => ['label' => 'Expirada', 'class' => 'border-slate-200 bg-slate-100 text-slate-700'],
+    'revogada' => ['label' => 'Revogada', 'class' => 'border-rose-200 bg-rose-50 text-rose-700'],
+];
+$approvalBadge = $approvalStatusMap[$approvalStatus] ?? ['label' => 'Nao gerado', 'class' => 'border-slate-200 bg-slate-100 text-slate-700'];
+$approvalActionLabel = $approvalSummary === null ? 'Gerar link' : 'Gerar novo link';
 ?>
 
 <div class="flex items-start justify-between gap-4">
@@ -240,6 +260,15 @@ $toastMessage = trim((string) ($toastMessage ?? ''));
             <input type="hidden" name="_csrf" value="<?= View::e($csrf) ?>">
             <button class="tr-btn" type="submit">Excluir</button>
           </form>
+          <?php if (in_array((string) ($serviceOrder['status'] ?? ''), [ServiceOrderStatus::CONCLUIDO, ServiceOrderStatus::FATURADO], true)): ?>
+            <form method="post" action="<?= View::e($base . '/ordens-servico/' . $id . '/aprovacao/gerar') ?>">
+              <input type="hidden" name="_csrf" value="<?= View::e($csrf) ?>">
+              <button class="tr-btn tr-icon-btn--accent" type="submit"><?= $approvalSummary === null ? 'Gerar link de aprovação' : 'Reenviar link de aprovação' ?></button>
+            </form>
+          <?php endif; ?>
+          <?php if ($approvalSummary !== null && (string) ($approvalSummary['proof_pdf_path'] ?? '') !== ''): ?>
+            <a class="tr-btn" href="<?= View::e($base . '/ordens-servico/' . $id . '/aprovacao/comprovante') ?>" target="_blank" rel="noopener">Abrir comprovante</a>
+          <?php endif; ?>
         </div>
       </div>
     <?php endif; ?>
@@ -270,10 +299,147 @@ $toastMessage = trim((string) ($toastMessage ?? ''));
       </div>
     </div>
 
+    <?php if ($isEdit): ?>
+      <div class="tr-card p-6">
+        <div class="flex items-center justify-between gap-3">
+          <div class="font-semibold">Aprovação digital do cliente</div>
+          <?php if ($approvalSummary !== null): ?>
+            <?php
+              $approvalBadge = match ((string) ($approvalSummary['status'] ?? 'pendente')) {
+                  'aprovada' => 'bg-emerald-50 border-emerald-200 text-emerald-800',
+                  'ajustes_solicitados' => 'bg-amber-50 border-amber-200 text-amber-800',
+                  'expirada' => 'bg-rose-50 border-rose-200 text-rose-800',
+                  'revogada' => 'bg-slate-100 border-slate-300 text-slate-700',
+                  default => 'bg-sky-50 border-sky-200 text-sky-800',
+              };
+              $approvalLabel = match ((string) ($approvalSummary['status'] ?? 'pendente')) {
+                  'aprovada' => 'Aprovada',
+                  'ajustes_solicitados' => 'Ajustes solicitados',
+                  'expirada' => 'Expirada',
+                  'revogada' => 'Revogada',
+                  default => 'Pendente',
+              };
+            ?>
+            <span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold <?= View::e($approvalBadge) ?>"><?= View::e($approvalLabel) ?></span>
+          <?php endif; ?>
+        </div>
+
+        <?php if ($approvalSummary === null): ?>
+          <div class="mt-4 text-sm text-slate-600">
+            Nenhum link externo foi gerado ainda. Ao concluir ou faturar a OS, o sistema poderá enviar um link seguro de aprovação por e-mail ao cliente.
+          </div>
+        <?php else: ?>
+          <div class="grid grid-cols-1 gap-3 mt-4 text-sm">
+            <div>
+              <div class="text-xs font-semibold text-slate-600">Validade do link</div>
+              <div class="mt-1"><?= View::e((string) ($approvalSummary['token_expires_at'] ?? '')) ?></div>
+            </div>
+            <div>
+              <div class="text-xs font-semibold text-slate-600">Último acesso</div>
+              <div class="mt-1"><?= View::e((string) ($approvalSummary['token_last_access_at'] ?? 'Ainda não acessado')) ?></div>
+            </div>
+            <div>
+              <div class="text-xs font-semibold text-slate-600">E-mail do cliente</div>
+              <div class="mt-1"><?= View::e((string) (($approvalSummary['client_billing_email'] ?? '') !== '' ? $approvalSummary['client_billing_email'] : ($approvalSummary['client_email'] ?? 'Não informado'))) ?></div>
+            </div>
+            <div>
+              <div class="text-xs font-semibold text-slate-600">E-mail enviado em</div>
+              <div class="mt-1"><?= View::e((string) ($approvalSummary['email_sent_at'] ?? 'Pendente')) ?></div>
+            </div>
+            <div>
+              <div class="text-xs font-semibold text-slate-600">Manifestante</div>
+              <div class="mt-1"><?= View::e((string) ($approvalSummary['requester_name'] ?? 'Ainda não informado')) ?></div>
+            </div>
+            <div>
+              <div class="text-xs font-semibold text-slate-600">Geolocalização aproximada</div>
+              <div class="mt-1"><?= View::e((string) ($approvalSummary['actor_geo_summary'] ?? 'Ainda não registrada')) ?></div>
+            </div>
+            <?php if ((string) ($approvalSummary['justification'] ?? '') !== ''): ?>
+              <div>
+                <div class="text-xs font-semibold text-slate-600">Justificativa do cliente</div>
+                <div class="mt-1 whitespace-pre-line"><?= View::e((string) $approvalSummary['justification']) ?></div>
+              </div>
+            <?php endif; ?>
+          </div>
+        <?php endif; ?>
+      </div>
+    <?php endif; ?>
+
     <div class="tr-card p-6">
+    <?php if ($isEdit): ?>
+      <div class="tr-card p-6">
+        <div class="flex items-center justify-between gap-3">
+          <div class="font-semibold">Aprovação digital</div>
+          <span class="inline-flex items-center rounded-full border px-2 py-1 text-xs font-semibold <?= View::e($approvalBadge['class']) ?>"><?= View::e($approvalBadge['label']) ?></span>
+        </div>
+
+        <?php if ($approvalSummary !== null): ?>
+          <div class="grid grid-cols-1 gap-3 mt-4 text-sm">
+            <div>
+              <div class="text-xs font-semibold text-slate-600">Validade do link</div>
+              <div class="mt-1"><?= View::e($formatDateTime((string) ($approvalSummary['token_expires_at'] ?? ''))) ?></div>
+            </div>
+            <div>
+              <div class="text-xs font-semibold text-slate-600">Primeiro acesso</div>
+              <div class="mt-1"><?= View::e($formatDateTime((string) ($approvalSummary['first_access_at'] ?? ''))) ?></div>
+            </div>
+            <div>
+              <div class="text-xs font-semibold text-slate-600">Decisão do cliente</div>
+              <div class="mt-1"><?= View::e($formatDateTime((string) ($approvalSummary['decision_at'] ?? ''))) ?></div>
+            </div>
+            <div>
+              <div class="text-xs font-semibold text-slate-600">Solicitante</div>
+              <div class="mt-1"><?= View::e((string) (($approvalSummary['requester_name'] ?? '') !== '' ? $approvalSummary['requester_name'] : 'Nao informado')) ?></div>
+            </div>
+            <div>
+              <div class="text-xs font-semibold text-slate-600">E-mail do cliente</div>
+              <div class="mt-1"><?= View::e((string) (($approvalSummary['requester_email'] ?? $approvalSummary['client_billing_email'] ?? $approvalSummary['client_email'] ?? '') !== '' ? ($approvalSummary['requester_email'] ?? $approvalSummary['client_billing_email'] ?? $approvalSummary['client_email']) : 'Nao informado')) ?></div>
+            </div>
+            <div>
+              <div class="text-xs font-semibold text-slate-600">Disparo por e-mail</div>
+              <div class="mt-1"><?= View::e($formatDateTime((string) ($approvalSummary['email_sent_at'] ?? ''))) ?></div>
+            </div>
+          </div>
+
+          <?php if (trim((string) ($approvalSummary['justification'] ?? '')) !== ''): ?>
+            <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+              <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Justificativa</div>
+              <div class="mt-2 whitespace-pre-line"><?= View::e((string) $approvalSummary['justification']) ?></div>
+            </div>
+          <?php endif; ?>
+        <?php else: ?>
+          <div class="mt-4 text-sm text-slate-600">
+            Nenhum link de aprovação foi gerado para esta ordem de serviço.
+          </div>
+        <?php endif; ?>
+
+        <div class="mt-4 flex flex-wrap gap-2">
+          <?php if ($canGenerateApproval): ?>
+            <form method="post" action="<?= View::e($base . '/ordens-servico/' . $id . '/aprovacao/gerar') ?>" onsubmit="return window.confirm('Gerar um novo link de aprovação para o cliente?');">
+              <input type="hidden" name="_csrf" value="<?= View::e($csrf) ?>">
+              <button class="tr-btn tr-icon-btn--accent" type="submit"><?= View::e($approvalActionLabel) ?></button>
+            </form>
+          <?php else: ?>
+            <div class="text-xs text-slate-500">
+              O link externo so pode ser gerado quando a OS estiver concluida ou faturada.
+            </div>
+          <?php endif; ?>
+
+          <?php if ($approvalSummary !== null && trim((string) ($approvalSummary['proof_pdf_path'] ?? '')) !== ''): ?>
+            <a class="tr-btn" href="<?= View::e($base . '/ordens-servico/' . $id . '/aprovacao/comprovante') ?>" target="_blank" rel="noopener">Comprovante PDF</a>
+          <?php endif; ?>
+        </div>
+
+        <div class="tr-hint mt-3">
+          O token nao fica armazenado em texto puro; para reenviar ao cliente, gere um novo link.
+        </div>
+      </div>
+    <?php endif; ?>
+
       <div class="flex items-center justify-between">
         <div class="font-semibold">Anexos</div>
         <span class="text-sm text-slate-600"><?= count($attachments) ?> total</span>
+      </div>
       </div>
       <div class="mt-4 space-y-3">
         <?php foreach ($attachments as $attachment): ?>

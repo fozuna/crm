@@ -78,10 +78,16 @@ $longPdf = $gen->build($branding, $long);
 $assert(str_starts_with($longPdf, '%PDF-1.4'), 'Geração com descrição longa permanece válida');
 $assert(str_contains($longPdf, 'Itens'), 'PDF com descrição longa mantém seção de itens');
 
+$databaseFailures = require __DIR__ . '/database_structure.php';
+$failures += (int) $databaseFailures;
+
 $leadFailures = require __DIR__ . '/leads_module.php';
 $failures += (int) $leadFailures;
 
 $serviceOrderFailures = require __DIR__ . '/service_orders_module.php';
 $failures += (int) $serviceOrderFailures;
+
+$approvalFailures = require __DIR__ . '/service_order_approval_module.php';
+$failures += (int) $approvalFailures;
 
 exit($failures > 0 ? 1 : 0);

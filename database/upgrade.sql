@@ -904,6 +904,135 @@ CREATE TABLE IF NOT EXISTS servicos_avulsos_historico (
   CONSTRAINT fk_servicos_avulsos_historico_os FOREIGN KEY (servico_avulso_id) REFERENCES servicos_avulsos(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS servicos_avulsos_aprovacoes (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  servico_avulso_id INT UNSIGNED NOT NULL,
+  public_id VARCHAR(40) NOT NULL,
+  token_hash CHAR(64) NOT NULL,
+  token_expires_at DATETIME NOT NULL,
+  token_used_at DATETIME NULL,
+  token_last_access_at DATETIME NULL,
+  token_revoked_at DATETIME NULL,
+  status ENUM('pendente','aprovada','ajustes_solicitados','expirada','revogada') NOT NULL DEFAULT 'pendente',
+  requester_name VARCHAR(190) NULL,
+  requester_email VARCHAR(190) NULL,
+  requester_phone VARCHAR(60) NULL,
+  justification TEXT NULL,
+  actor_identifier CHAR(64) NULL,
+  actor_ip VARCHAR(64) NULL,
+  actor_user_agent VARCHAR(255) NULL,
+  actor_geo_summary VARCHAR(255) NULL,
+  actor_geo_json MEDIUMTEXT NULL,
+  first_access_at DATETIME NULL,
+  decision_at DATETIME NULL,
+  proof_pdf_path VARCHAR(255) NULL,
+  proof_pdf_hash CHAR(64) NULL,
+  proof_pdf_generated_at DATETIME NULL,
+  email_sent_at DATETIME NULL,
+  sms_status ENUM('pendente','enfileirado','indisponivel','falhou') NOT NULL DEFAULT 'indisponivel',
+  sms_message TEXT NULL,
+  created_by INT UNSIGNED NULL,
+  updated_by INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  UNIQUE KEY uq_servicos_avulsos_aprovacoes_os (servico_avulso_id),
+  UNIQUE KEY uq_servicos_avulsos_aprovacoes_public_id (public_id),
+  UNIQUE KEY uq_servicos_avulsos_aprovacoes_token_hash (token_hash),
+  INDEX idx_servicos_avulsos_aprovacoes_status (status, token_expires_at),
+  CONSTRAINT fk_servicos_avulsos_aprovacoes_os FOREIGN KEY (servico_avulso_id) REFERENCES servicos_avulsos(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS servicos_avulsos_aprovacao_eventos (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  servico_avulso_id INT UNSIGNED NOT NULL,
+  aprovacao_id INT UNSIGNED NOT NULL,
+  event_type ENUM(
+    'link_gerado',
+    'link_acessado',
+    'acesso_bloqueado',
+    'email_enviado',
+    'email_falhou',
+    'sms_enfileirado',
+    'sms_falhou',
+    'aprovada',
+    'ajustes_solicitados',
+    'comprovante_gerado',
+    'notificacao_interna_enviada',
+    'notificacao_interna_falhou'
+  ) NOT NULL,
+  actor_identifier CHAR(64) NULL,
+  ip_address VARCHAR(64) NULL,
+  user_agent VARCHAR(255) NULL,
+  geo_summary VARCHAR(255) NULL,
+  metadata MEDIUMTEXT NULL,
+  created_at DATETIME NOT NULL,
+  INDEX idx_servicos_avulsos_aprovacao_eventos_os (servico_avulso_id, created_at),
+  INDEX idx_servicos_avulsos_aprovacao_eventos_aprovacao (aprovacao_id, created_at),
+  CONSTRAINT fk_servicos_avulsos_aprovacao_eventos_os FOREIGN KEY (servico_avulso_id) REFERENCES servicos_avulsos(id) ON DELETE CASCADE,
+  CONSTRAINT fk_servicos_avulsos_aprovacao_eventos_aprovacao FOREIGN KEY (aprovacao_id) REFERENCES servicos_avulsos_aprovacoes(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS servicos_avulsos_aprovacao_notificacoes (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  servico_avulso_id INT UNSIGNED NOT NULL,
+  aprovacao_id INT UNSIGNED NOT NULL,
+  channel ENUM('email','sms') NOT NULL,
+  notification_type ENUM('solicitacao_aprovacao','acao_cliente','alerta_interno') NOT NULL,
+  recipient_name VARCHAR(190) NULL,
+  recipient_target VARCHAR(190) NOT NULL,
+  status ENUM('pendente','enviado','falhou','enfileirado','ignorado') NOT NULL DEFAULT 'pendente',
+  subject VARCHAR(190) NULL,
+  message MEDIUMTEXT NOT NULL,
+  metadata MEDIUMTEXT NULL,
+  created_at DATETIME NOT NULL,
+  sent_at DATETIME NULL,
+  INDEX idx_servicos_avulsos_aprovacao_notif_os (servico_avulso_id, created_at),
+  INDEX idx_servicos_avulsos_aprovacao_notif_aprovacao (aprovacao_id, created_at),
+  INDEX idx_servicos_avulsos_aprovacao_notif_status (status, channel),
+  CONSTRAINT fk_servicos_avulsos_aprovacao_notif_os FOREIGN KEY (servico_avulso_id) REFERENCES servicos_avulsos(id) ON DELETE CASCADE,
+  CONSTRAINT fk_servicos_avulsos_aprovacao_notif_aprovacao FOREIGN KEY (aprovacao_id) REFERENCES servicos_avulsos_aprovacoes(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+DROP TRIGGER IF EXISTS tr_servicos_avulsos_aprovacao_eventos_no_update;
+DELIMITER //
+CREATE TRIGGER tr_servicos_avulsos_aprovacao_eventos_no_update
+BEFORE UPDATE ON servicos_avulsos_aprovacao_eventos
+FOR EACH ROW
+BEGIN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Eventos de aprovação da OS são imutáveis.';
+END//
+DELIMITER ;
+
+DROP TRIGGER IF EXISTS tr_servicos_avulsos_aprovacao_eventos_no_delete;
+DELIMITER //
+CREATE TRIGGER tr_servicos_avulsos_aprovacao_eventos_no_delete
+BEFORE DELETE ON servicos_avulsos_aprovacao_eventos
+FOR EACH ROW
+BEGIN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Eventos de aprovação da OS são imutáveis.';
+END//
+DELIMITER ;
+
+DROP TRIGGER IF EXISTS tr_servicos_avulsos_aprovacao_notificacoes_no_update;
+DELIMITER //
+CREATE TRIGGER tr_servicos_avulsos_aprovacao_notificacoes_no_update
+BEFORE UPDATE ON servicos_avulsos_aprovacao_notificacoes
+FOR EACH ROW
+BEGIN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Notificações de aprovação da OS são imutáveis.';
+END//
+DELIMITER ;
+
+DROP TRIGGER IF EXISTS tr_servicos_avulsos_aprovacao_notificacoes_no_delete;
+DELIMITER //
+CREATE TRIGGER tr_servicos_avulsos_aprovacao_notificacoes_no_delete
+BEFORE DELETE ON servicos_avulsos_aprovacao_notificacoes
+FOR EACH ROW
+BEGIN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Notificações de aprovação da OS são imutáveis.';
+END//
+DELIMITER ;
+
 -- ============================================================================
 -- BLOCO 9: SEEDS IDEMPOTENTES DE FORMAS DE PAGAMENTO.
 -- Sao inseridas apenas quando ainda nao existirem registros equivalentes,

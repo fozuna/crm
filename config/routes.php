@@ -26,6 +26,7 @@ use App\Controllers\AuditApiController;
 use App\Controllers\MaintenanceController;
 use App\Controllers\ManualController;
 use App\Controllers\ServiceController;
+use App\Controllers\ServiceOrderApprovalController;
 use App\Controllers\ServiceApiController;
 use App\Controllers\ServiceOrderController;
 use App\Controllers\FinancialModuleController;
@@ -74,9 +75,14 @@ return static function (Router $router, array $mw): void {
     $router->post('/ordens-servico/{id}/status', [new ServiceOrderController(), 'updateStatus'], [$auth, $pm, $csrf]);
     $router->post('/ordens-servico/{id}/cancelar', [new ServiceOrderController(), 'cancel'], [$auth, $pm, $csrf]);
     $router->post('/ordens-servico/{id}/excluir', [new ServiceOrderController(), 'destroy'], [$auth, $pm, $csrf]);
+    $router->post('/ordens-servico/{id}/aprovacao/gerar', [new ServiceOrderApprovalController(), 'generate'], [$auth, $pm, $csrf]);
+    $router->get('/ordens-servico/{id}/aprovacao/comprovante', [new ServiceOrderApprovalController(), 'proof'], [$auth, $auditor]);
     $router->get('/ordens-servico/{id}/pdf', [new ServiceOrderController(), 'pdf'], [$auth, $auditor]);
     $router->get('/ordens-servico/{id}/anexos/{attachmentId}', [new ServiceOrderController(), 'attachment'], [$auth, $auditor]);
     $router->post('/ordens-servico/{id}/anexos/{attachmentId}/excluir', [new ServiceOrderController(), 'deleteAttachment'], [$auth, $pm, $csrf]);
+
+    $router->get('/os/aprovacao/{publicId}', [new ServiceOrderApprovalController(), 'showPublic']);
+    $router->post('/os/aprovacao/{publicId}', [new ServiceOrderApprovalController(), 'submitPublic']);
 
     $router->get('/maintenance/db-upgrade/check', [new MaintenanceController(), 'checkDbUpgrade'], [$auth, $admin]);
     $router->post('/maintenance/db-upgrade/start', [new MaintenanceController(), 'startDbUpgrade'], [$auth, $admin, $csrf]);

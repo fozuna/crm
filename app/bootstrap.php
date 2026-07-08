@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 use App\Core\Config;
 use App\Core\Session;
+use App\Services\DatabaseStructureOutOfSyncException;
 
 spl_autoload_register(static function (string $class): void {
     $prefix = 'App\\';
@@ -42,6 +43,7 @@ foreach ([
     __DIR__ . '/../storage/logs',
     __DIR__ . '/../storage/pdfs/contracts',
     __DIR__ . '/../storage/pdfs/proposals',
+    __DIR__ . '/../storage/pdfs/service_orders/approvals',
     __DIR__ . '/../storage/sessions',
     __DIR__ . '/../storage/uploads/clients',
     __DIR__ . '/../storage/uploads/company_profile',
@@ -114,6 +116,11 @@ set_exception_handler(static function (Throwable $e): void {
     }
     if ($debug) {
         echo '<pre style="white-space: pre-wrap;">' . htmlspecialchars((string) $e) . '</pre>';
+        return;
+    }
+
+    if ($e instanceof DatabaseStructureOutOfSyncException) {
+        echo htmlspecialchars($e->getMessage()) . ' Execute o sincronizador oficial (`php tools/db_sync.php --env=development`) antes de liberar o acesso. Ref: ' . htmlspecialchars($e->referenceId());
         return;
     }
 

@@ -45,6 +45,7 @@ final class ServiceOrderService
 
             $this->auditRepo()->create('service_order', $id, 'create', $actorId, ['after' => $current]);
             $pdo->commit();
+            $this->triggerApprovalWorkflow([], $current, $actorId);
             return $current;
         } catch (\Throwable $e) {
             if ($pdo->inTransaction()) {
@@ -79,6 +80,7 @@ final class ServiceOrderService
                 'after' => $updated,
             ]);
             $pdo->commit();
+            $this->triggerApprovalWorkflow($existing, $updated, $actorId);
             return $updated;
         } catch (\Throwable $e) {
             if ($pdo->inTransaction()) {
@@ -117,6 +119,7 @@ final class ServiceOrderService
             'before_status' => $existing['status'] ?? null,
             'after_status' => $status,
         ]);
+        $this->triggerApprovalWorkflow($existing, $updated, $actorId);
         return $updated;
     }
 
@@ -380,6 +383,42 @@ final class ServiceOrderService
             return number_format($value, 2, '.', '');
         }
         return trim((string) $value);
+    }
+
+    private function triggerApprovalWorkflow(array $before, array $after, int $actorId): void
+    {
+        $serviceOrderId = (int) ($after['id'] ?? 0);
+        if ($serviceOrderId <= 0) {
+            return;
+        }
+
+        $afterStatus = (string) ($after['status'] ?? '');
+        if (!in_array($afterStatus, [ServiceOrderStatus::CONCLUIDO, ServiceOrderStatus::FATURADO], true)) {
+            return;
+        }
+
+        $shouldGenerate = $before === []
+            || (new ServiceOrderApprovalService())->shouldAutoGenerate($before, $after);
+        if (!$shouldGenerate) {
+            return;
+        }
+
+        try {
+            (new ServiceOrderApprovalService())->generateForServiceOrder($serviceOrderId, $actorId);
+        } catch (\Throwable $e) {
+            $this->historyRepo()->create(
+                $serviceOrderId,
+                'approval_link_error',
+                $actorId,
+                null,
+                null,
+                null,
+                'Falha ao gerar o link externo de aprovação: ' . $e->getMessage()
+            );
+            $this->auditRepo()->create('service_order', $serviceOrderId, 'approval_link_error', $actorId, [
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function orderRepo(): ServiceOrderRepositoryContract
