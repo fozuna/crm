@@ -92,6 +92,20 @@ $logException = static function (Throwable $e, string $id) use ($logDir): void {
     @file_put_contents($logDir . '/app.log', $line, FILE_APPEND);
 };
 
+$writeRuntimeEvent = static function (string $event, array $context = []) use ($logDir): void {
+    $payload = [
+        'timestamp' => date(DATE_ATOM),
+        'event' => $event,
+        'context' => $context,
+    ];
+
+    @file_put_contents(
+        $logDir . '/runtime-events.ndjson',
+        json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . PHP_EOL,
+        FILE_APPEND
+    );
+};
+
 set_error_handler(static function (int $severity, string $message, string $file, int $line): bool {
     if (!(error_reporting() & $severity)) {
         return false;
@@ -113,7 +127,7 @@ register_shutdown_function(static function () use ($logException): void {
     $logException($e, $id);
 });
 
-set_exception_handler(static function (Throwable $e): void {
+set_exception_handler(static function (Throwable $e) use ($syncCommandForEnvironment, $writeRuntimeEvent): void {
     http_response_code(500);
     $debug = (bool) Config::get('APP_DEBUG', false);
     $id = bin2hex(random_bytes(6));
@@ -133,6 +147,18 @@ set_exception_handler(static function (Throwable $e): void {
     if (!$wrote) {
         @error_log($line);
     }
+
+    // #region debug-point production-500-exception-handler
+    $writeRuntimeEvent('exception_handler_invoked', [
+        'reference_id' => $id,
+        'exception_class' => $e::class,
+        'message' => $e->getMessage(),
+        'app_env' => (string) Config::get('APP_ENV', 'production'),
+        'request_uri' => (string) ($_SERVER['REQUEST_URI'] ?? ''),
+        'request_method' => (string) ($_SERVER['REQUEST_METHOD'] ?? ''),
+    ]);
+    // #endregion
+
     if ($debug) {
         echo '<pre style="white-space: pre-wrap;">' . htmlspecialchars((string) $e) . '</pre>';
         return;
@@ -140,6 +166,11 @@ set_exception_handler(static function (Throwable $e): void {
 
     if ($e instanceof DatabaseStructureOutOfSyncException) {
         $command = $syncCommandForEnvironment();
+        $writeRuntimeEvent('db_structure_out_of_sync_rendered', [
+            'reference_id' => $e->referenceId(),
+            'sync_command' => $command,
+            'inspect' => $e->inspect(),
+        ]);
         echo htmlspecialchars($e->getMessage()) . ' Execute o sincronizador oficial (`' . htmlspecialchars($command) . '`) antes de liberar o acesso. Ref: ' . htmlspecialchars($e->referenceId());
         return;
     }

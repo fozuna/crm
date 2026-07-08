@@ -90,4 +90,7 @@ $failures += (int) $serviceOrderFailures;
 $approvalFailures = require __DIR__ . '/service_order_approval_module.php';
 $failures += (int) $approvalFailures;
 
+$productionErrorFailures = require __DIR__ . '/production_error_handling.php';
+$failures += (int) $productionErrorFailures;
+
 exit($failures > 0 ? 1 : 0);
