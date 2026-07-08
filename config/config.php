@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 return [
     'APP_NAME' => 'TRAXTER CRM',
+    'APP_ENV' => 'production',
     'APP_URL' => 'https://seu-dominio.com',
     'APP_BASE_PATH' => '',
     'APP_DEBUG' => false,

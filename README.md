@@ -10,6 +10,7 @@ Esta é uma regra permanente do projeto:
 - Toda alteração estrutural deve manter paridade entre `database/schema.sql` e `database/upgrade.sql`.
 - A validação da estrutura é executada na inicialização da aplicação.
 - Se houver divergência estrutural, o sistema bloqueia o acesso até que o sincronizador oficial seja executado.
+- O ambiente deve ser declarado em `APP_ENV` com um destes valores: `development`, `homolog` ou `production`.
 
 ## Comandos oficiais
 

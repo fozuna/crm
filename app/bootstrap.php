@@ -64,6 +64,25 @@ if (!headers_sent()) {
 
 $logDir = __DIR__ . '/../storage/logs';
 
+$normalizeRuntimeEnvironment = static function (mixed $value): string {
+    $env = strtolower(trim((string) $value));
+    return match ($env) {
+        'dev', 'development', 'local' => 'development',
+        'homolog', 'staging', 'stage' => 'homolog',
+        'manual', 'install' => $env,
+        default => 'production',
+    };
+};
+
+$syncCommandForEnvironment = static function () use ($normalizeRuntimeEnvironment): string {
+    $env = $normalizeRuntimeEnvironment(Config::get('APP_ENV', 'production'));
+    if (!in_array($env, ['development', 'homolog', 'production'], true)) {
+        $env = 'production';
+    }
+
+    return 'php tools/db_sync.php --env=' . $env;
+};
+
 $logException = static function (Throwable $e, string $id) use ($logDir): void {
     $when = date('Y-m-d H:i:s');
     $uri = (string) ($_SERVER['REQUEST_METHOD'] ?? '') . ' ' . (string) ($_SERVER['REQUEST_URI'] ?? '');
@@ -120,7 +139,8 @@ set_exception_handler(static function (Throwable $e): void {
     }
 
     if ($e instanceof DatabaseStructureOutOfSyncException) {
-        echo htmlspecialchars($e->getMessage()) . ' Execute o sincronizador oficial (`php tools/db_sync.php --env=development`) antes de liberar o acesso. Ref: ' . htmlspecialchars($e->referenceId());
+        $command = $syncCommandForEnvironment();
+        echo htmlspecialchars($e->getMessage()) . ' Execute o sincronizador oficial (`' . htmlspecialchars($command) . '`) antes de liberar o acesso. Ref: ' . htmlspecialchars($e->referenceId());
         return;
     }
 
