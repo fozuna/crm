@@ -69,4 +69,91 @@ final class FinancialReceiptRepository
         $stmt->execute();
         return (float) $stmt->fetchColumn();
     }
+
+    /**
+     * Recebimentos filtrados pela data real de pagamento (fr.payment_date), não pelo
+     * vencimento do título — usado pelo relatório financeiro consolidado para responder
+     * "quanto entrou de caixa no período filtrado" (CRM_AUDIT.md P02/P07).
+     */
+    public function listByPeriod(int $companyId, array $filters, int $page = 1, int $perPage = 50): array
+    {
+        $page = max(1, $page);
+        $perPage = max(1, min(5000, $perPage));
+        $offset = ($page - 1) * $perPage;
+        [$whereSql, $params] = $this->buildFilters($companyId, $filters);
+
+        $countStmt = DB::pdo()->prepare("SELECT COUNT(*) FROM financial_receipts fr
+                INNER JOIN financial_accounts_receivable far ON far.id = fr.receivable_id
+                WHERE fr.reversed_at IS NULL AND far.deleted_at IS NULL {$whereSql}");
+        $this->bindAll($countStmt, $params);
+        $countStmt->execute();
+        $total = (int) $countStmt->fetchColumn();
+
+        $sql = "SELECT fr.id, fr.receivable_id, far.title, far.project_id, p.title AS project_title,
+                       far.client_id, c.company AS client_company,
+                       fr.amount_received, fr.interest_amount, fr.fine_amount, fr.discount_amount,
+                       ((fr.amount_received + fr.interest_amount + fr.fine_amount) - fr.discount_amount) AS net_amount,
+                       fr.payment_method, fr.payment_date
+                FROM financial_receipts fr
+                INNER JOIN financial_accounts_receivable far ON far.id = fr.receivable_id
+                INNER JOIN clients c ON c.id = far.client_id
+                LEFT JOIN projects p ON p.id = far.project_id
+                WHERE fr.reversed_at IS NULL AND far.deleted_at IS NULL {$whereSql}
+                ORDER BY fr.payment_date DESC, fr.id DESC
+                LIMIT {$perPage} OFFSET {$offset}";
+        $stmt = DB::pdo()->prepare($sql);
+        $this->bindAll($stmt, $params);
+        $stmt->execute();
+
+        return [
+            'rows' => $stmt->fetchAll(),
+            'page' => $page,
+            'per_page' => $perPage,
+            'total' => $total,
+        ];
+    }
+
+    public function totalReceived(int $companyId, array $filters): float
+    {
+        [$whereSql, $params] = $this->buildFilters($companyId, $filters);
+        $sql = "SELECT COALESCE(SUM((fr.amount_received + fr.interest_amount + fr.fine_amount) - fr.discount_amount),0)
+                FROM financial_receipts fr
+                INNER JOIN financial_accounts_receivable far ON far.id = fr.receivable_id
+                WHERE fr.reversed_at IS NULL AND far.deleted_at IS NULL {$whereSql}";
+        $stmt = DB::pdo()->prepare($sql);
+        $this->bindAll($stmt, $params);
+        $stmt->execute();
+        return (float) $stmt->fetchColumn();
+    }
+
+    private function buildFilters(int $companyId, array $filters): array
+    {
+        $where = [' AND far.company_id = :company_id'];
+        $params = [':company_id' => $companyId];
+        foreach (['client_id', 'project_id'] as $field) {
+            $v = (int) ($filters[$field] ?? 0);
+            if ($v > 0) {
+                $where[] = ' AND far.' . $field . ' = :' . $field;
+                $params[':' . $field] = $v;
+            }
+        }
+        $from = trim((string) ($filters['due_from'] ?? ''));
+        if ($from !== '') {
+            $where[] = ' AND fr.payment_date >= :from';
+            $params[':from'] = $from . ' 00:00:00';
+        }
+        $to = trim((string) ($filters['due_to'] ?? ''));
+        if ($to !== '') {
+            $where[] = ' AND fr.payment_date <= :to';
+            $params[':to'] = $to . ' 23:59:59';
+        }
+        return [implode('', $where), $params];
+    }
+
+    private function bindAll(\PDOStatement $stmt, array $params): void
+    {
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value, is_int($value) ? \PDO::PARAM_INT : \PDO::PARAM_STR);
+        }
+    }
 }

@@ -15,29 +15,9 @@ final class FinancialReceivableRepository
         $offset = ($page - 1) * $perPage;
         [$whereSql, $params] = $this->buildFilters($companyId, $filters);
 
-        $baseSql = " FROM financial_accounts_receivable far
-                     INNER JOIN clients c ON c.id = far.client_id
-                     LEFT JOIN projects p ON p.id = far.project_id
-                     LEFT JOIN financial_categories fc ON fc.id = far.category_id
-                     LEFT JOIN financial_cost_centers fcc ON fcc.id = far.cost_center_id
-                     WHERE far.deleted_at IS NULL {$whereSql}";
+        $total = $this->countMatching($whereSql, $params);
 
-        $countStmt = DB::pdo()->prepare('SELECT COUNT(*)' . $baseSql);
-        $this->bindAll($countStmt, $params);
-        $countStmt->execute();
-        $total = (int) $countStmt->fetchColumn();
-
-        $sql = "SELECT far.*,
-                       c.name AS client_name,
-                       c.company AS client_company,
-                       p.title AS project_title,
-                       fc.name AS category_name,
-                       fcc.name AS cost_center_name,
-                       CASE
-                         WHEN far.status IN ('paid','canceled','renegotiated') THEN 0
-                         WHEN far.due_date < CURDATE() THEN DATEDIFF(CURDATE(), far.due_date)
-                         ELSE 0
-                       END AS days_overdue" . $baseSql .
+        $sql = $this->selectColumnsSql() . $this->baseFromWhere($whereSql) .
                ' ORDER BY ' . $this->orderBy($filters) .
                " LIMIT {$perPage} OFFSET {$offset}";
         $stmt = DB::pdo()->prepare($sql);
@@ -51,6 +31,69 @@ final class FinancialReceivableRepository
             'total' => $total,
             'pages' => max(1, (int) ceil($total / $perPage)),
         ];
+    }
+
+    /**
+     * Usado pelo relatório financeiro consolidado e pelas exportações (PDF/Excel/CSV),
+     * que precisam do conjunto completo (até um teto de segurança), não de uma página
+     * de UI. paginate() limita propositalmente a 100/página para a listagem operacional
+     * (/financeiro/recebiveis) — reutilizar esse método diretamente aqui reintroduziria,
+     * para o financeiro, o mesmo bug de truncamento silencioso já corrigido para Ordens
+     * de Serviço (CRM_AUDIT.md P03). $limit é um teto de segurança, não uma paginação de tela.
+     */
+    public function reportRows(int $companyId, array $filters, int $limit = 2000): array
+    {
+        $limit = max(1, min(5000, $limit));
+        [$whereSql, $params] = $this->buildFilters($companyId, $filters);
+
+        $total = $this->countMatching($whereSql, $params);
+
+        $sql = $this->selectColumnsSql() . $this->baseFromWhere($whereSql) .
+               ' ORDER BY ' . $this->orderBy($filters) .
+               " LIMIT {$limit}";
+        $stmt = DB::pdo()->prepare($sql);
+        $this->bindAll($stmt, $params);
+        $stmt->execute();
+        $rows = $stmt->fetchAll();
+
+        return [
+            'rows' => $rows,
+            'total' => $total,
+            'truncated' => $total > count($rows),
+        ];
+    }
+
+    private function baseFromWhere(string $whereSql): string
+    {
+        return " FROM financial_accounts_receivable far
+                 INNER JOIN clients c ON c.id = far.client_id
+                 LEFT JOIN projects p ON p.id = far.project_id
+                 LEFT JOIN financial_categories fc ON fc.id = far.category_id
+                 LEFT JOIN financial_cost_centers fcc ON fcc.id = far.cost_center_id
+                 WHERE far.deleted_at IS NULL {$whereSql}";
+    }
+
+    private function selectColumnsSql(): string
+    {
+        return "SELECT far.*,
+                       c.name AS client_name,
+                       c.company AS client_company,
+                       p.title AS project_title,
+                       fc.name AS category_name,
+                       fcc.name AS cost_center_name,
+                       CASE
+                         WHEN far.status IN ('paid','canceled','renegotiated') THEN 0
+                         WHEN far.due_date < CURDATE() THEN DATEDIFF(CURDATE(), far.due_date)
+                         ELSE 0
+                       END AS days_overdue";
+    }
+
+    private function countMatching(string $whereSql, array $params): int
+    {
+        $countStmt = DB::pdo()->prepare('SELECT COUNT(*)' . $this->baseFromWhere($whereSql));
+        $this->bindAll($countStmt, $params);
+        $countStmt->execute();
+        return (int) $countStmt->fetchColumn();
     }
 
     public function find(int $companyId, int $id): ?array
@@ -163,6 +206,89 @@ final class FinancialReceivableRepository
         $stmt->bindValue(':company_id', $companyId, \PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll();
+    }
+
+    /**
+     * KPIs consolidados para o relatório financeiro (CRM_AUDIT.md P02): reusa o mesmo
+     * WHERE de paginate()/buildFilters() para "a receber"/"vencido" (baseados em
+     * far.due_date) e delega a "recebido" para FinancialReceiptRepository, que filtra
+     * pela data real do pagamento (fr.payment_date) em vez do vencimento do título.
+     */
+    public function totals(int $companyId, array $filters): array
+    {
+        [$whereSql, $params] = $this->buildFilters($companyId, $filters);
+        $pdo = DB::pdo();
+
+        $sql = "SELECT
+                    COALESCE(SUM(CASE WHEN far.status IN ('pending','partially_paid','overdue') THEN far.remaining_amount ELSE 0 END),0) AS receivable,
+                    COALESCE(SUM(CASE WHEN far.status = 'overdue' THEN far.remaining_amount ELSE 0 END),0) AS overdue,
+                    COALESCE(SUM(CASE WHEN far.status IN ('pending','partially_paid') THEN far.remaining_amount ELSE 0 END),0) AS to_receive
+                FROM financial_accounts_receivable far
+                INNER JOIN clients c ON c.id = far.client_id
+                LEFT JOIN projects p ON p.id = far.project_id
+                WHERE far.deleted_at IS NULL {$whereSql}";
+        $stmt = $pdo->prepare($sql);
+        $this->bindAll($stmt, $params);
+        $stmt->execute();
+        $row = $stmt->fetch();
+        $row = is_array($row) ? $row : [];
+
+        $received = (new FinancialReceiptRepository())->totalReceived($companyId, $filters);
+
+        $receivable = (float) ($row['receivable'] ?? 0);
+        $overdue = (float) ($row['overdue'] ?? 0);
+
+        return [
+            'receivable' => $receivable,
+            'overdue' => $overdue,
+            'to_receive' => (float) ($row['to_receive'] ?? 0),
+            'received' => $received,
+            'delinquency_rate' => $receivable > 0 ? $overdue / $receivable : 0.0,
+        ];
+    }
+
+    /**
+     * Saldo em aberto agrupado por mês de vencimento, usado no gráfico de fluxo de
+     * caixa do relatório financeiro. Reusa buildFilters()/orderBy() já existentes em
+     * vez de duplicar a lógica de filtro em uma nova classe.
+     */
+    public function cashflowBuckets(int $companyId, array $filters): array
+    {
+        [$whereSql, $params] = $this->buildFilters($companyId, $filters);
+        $sql = "SELECT DATE_FORMAT(far.due_date, '%Y-%m-01') AS bucket, COALESCE(SUM(far.remaining_amount),0) AS open_amount
+                FROM financial_accounts_receivable far
+                INNER JOIN clients c ON c.id = far.client_id
+                LEFT JOIN projects p ON p.id = far.project_id
+                LEFT JOIN financial_categories fc ON fc.id = far.category_id
+                LEFT JOIN financial_cost_centers fcc ON fcc.id = far.cost_center_id
+                WHERE far.deleted_at IS NULL AND far.status IN ('pending','partially_paid','overdue') {$whereSql}
+                GROUP BY bucket ORDER BY bucket ASC";
+        $stmt = DB::pdo()->prepare($sql);
+        $this->bindAll($stmt, $params);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Identifica, entre os IDs informados, quais títulos têm origem em uma Ordem de
+     * Serviço (servicos_avulsos.financial_receivable_id). Combinado com
+     * source_installment_id/contract_id no chamador, permite exibir a coluna "Origem"
+     * do relatório sem duplicar a lógica de leitura de servicos_avulsos.
+     */
+    public function originsForIds(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn (int $id): bool => $id > 0)));
+        if ($ids === []) {
+            return [];
+        }
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = DB::pdo()->prepare("SELECT DISTINCT financial_receivable_id FROM servicos_avulsos WHERE financial_receivable_id IN ({$placeholders}) AND deleted_at IS NULL");
+        $stmt->execute($ids);
+        $found = [];
+        foreach ($stmt->fetchAll(\PDO::FETCH_COLUMN) as $id) {
+            $found[(int) $id] = true;
+        }
+        return $found;
     }
 
     public function upcoming(int $companyId, int $days = 15, int $limit = 10): array

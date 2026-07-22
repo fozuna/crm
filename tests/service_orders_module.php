@@ -26,10 +26,17 @@ final class FakeServiceOrderRepository implements ServiceOrderRepositoryContract
 {
     public array $rows = [];
     public int $nextId = 1;
+    public ?int $reportTotalOverride = null;
 
     public function paginate(array $filters, int $page = 1, int $perPage = 20): array
     {
         return ['rows' => array_values($this->rows), 'page' => 1, 'per_page' => $perPage, 'total' => count($this->rows), 'pages' => 1];
+    }
+
+    public function reportRows(array $filters, int $limit = 2000): array
+    {
+        $rows = array_values($this->rows);
+        return ['rows' => $rows, 'total' => $this->reportTotalOverride ?? count($rows), 'limit' => $limit];
     }
 
     public function find(int $id): ?array
@@ -239,6 +246,13 @@ $assert((string) ($repo->find($createdId)['status'] ?? '') === ServiceOrderStatu
 
 $report = $service->report([]);
 $assert((int) ($report['totals']['concluido'] ?? 0) >= 1, 'Relatório agrega OS concluídas');
+$assert((int) ($report['total'] ?? -1) === count($repo->rows), 'Relatório expõe o total real de OS filtradas');
+$assert(($report['truncated'] ?? true) === false, 'Relatório não se marca como truncado quando todas as linhas foram retornadas');
+
+$repo->reportTotalOverride = count($repo->rows) + 50;
+$truncatedReport = $service->report([]);
+$assert($truncatedReport['truncated'] === true, 'Relatório sinaliza truncamento quando o total real excede as linhas retornadas pelo teto de segurança');
+$repo->reportTotalOverride = null;
 
 $pdf = (new ServiceOrderPdfGenerator())->build(
     [

@@ -13,27 +13,11 @@ final class ServiceOrderRepository implements ServiceOrderRepositoryContract
         $page = max(1, $page);
         $perPage = max(5, min(100, $perPage));
         $offset = ($page - 1) * $perPage;
-        [$whereSql, $params] = $this->buildFilters($filters);
+        [$baseSql, $params] = $this->baseFromWhere($filters);
 
-        $baseSql = " FROM servicos_avulsos so
-                     LEFT JOIN clients c ON c.id = so.client_id
-                     LEFT JOIN users u ON u.id = so.assigned_user_id
-                     LEFT JOIN services s ON s.id = so.base_service_id
-                     WHERE so.deleted_at IS NULL {$whereSql}";
+        $total = $this->countMatching($baseSql, $params);
 
-        $countStmt = DB::pdo()->prepare('SELECT COUNT(*)' . $baseSql);
-        $this->bindAll($countStmt, $params);
-        $countStmt->execute();
-        $total = (int) $countStmt->fetchColumn();
-
-        $sql = "SELECT so.*,
-                       c.name AS client_name,
-                       c.company AS client_company,
-                       c.email AS client_email,
-                       c.phone AS client_phone,
-                       c.contact_person AS client_contact_person,
-                       u.name AS assigned_user_name,
-                       s.name AS base_service_name" . $baseSql .
+        $sql = $this->selectColumnsSql() . $baseSql .
                ' ORDER BY ' . $this->orderBy($filters) .
                " LIMIT {$perPage} OFFSET {$offset}";
         $stmt = DB::pdo()->prepare($sql);
@@ -46,6 +30,32 @@ final class ServiceOrderRepository implements ServiceOrderRepositoryContract
             'per_page' => $perPage,
             'total' => $total,
             'pages' => max(1, (int) ceil($total / $perPage)),
+        ];
+    }
+
+    /**
+     * Conjunto completo (não paginado) para relatórios e exportações, com teto de
+     * segurança apenas para conter memória em bases anormalmente grandes — não uma
+     * paginação de tela. `total` permite detectar se o teto foi atingido.
+     */
+    public function reportRows(array $filters, int $limit = 2000): array
+    {
+        $limit = max(1, min(5000, $limit));
+        [$baseSql, $params] = $this->baseFromWhere($filters);
+
+        $total = $this->countMatching($baseSql, $params);
+
+        $sql = $this->selectColumnsSql() . $baseSql .
+               ' ORDER BY ' . $this->orderBy($filters) .
+               " LIMIT {$limit}";
+        $stmt = DB::pdo()->prepare($sql);
+        $this->bindAll($stmt, $params);
+        $stmt->execute();
+
+        return [
+            'rows' => $stmt->fetchAll(),
+            'total' => $total,
+            'limit' => $limit,
         ];
     }
 
@@ -231,6 +241,39 @@ final class ServiceOrderRepository implements ServiceOrderRepositoryContract
         $stmt->bindValue(':updated_by', $actorId > 0 ? $actorId : null, $actorId > 0 ? \PDO::PARAM_INT : \PDO::PARAM_NULL);
     }
 
+    private function baseFromWhere(array $filters): array
+    {
+        [$whereSql, $params] = $this->buildFilters($filters);
+
+        $sql = " FROM servicos_avulsos so
+                 LEFT JOIN clients c ON c.id = so.client_id
+                 LEFT JOIN users u ON u.id = so.assigned_user_id
+                 LEFT JOIN services s ON s.id = so.base_service_id
+                 WHERE so.deleted_at IS NULL {$whereSql}";
+
+        return [$sql, $params];
+    }
+
+    private function selectColumnsSql(): string
+    {
+        return "SELECT so.*,
+                       c.name AS client_name,
+                       c.company AS client_company,
+                       c.email AS client_email,
+                       c.phone AS client_phone,
+                       c.contact_person AS client_contact_person,
+                       u.name AS assigned_user_name,
+                       s.name AS base_service_name";
+    }
+
+    private function countMatching(string $baseSql, array $params): int
+    {
+        $countStmt = DB::pdo()->prepare('SELECT COUNT(*)' . $baseSql);
+        $this->bindAll($countStmt, $params);
+        $countStmt->execute();
+        return (int) $countStmt->fetchColumn();
+    }
+
     private function buildFilters(array $filters): array
     {
         $where = [];
@@ -238,8 +281,13 @@ final class ServiceOrderRepository implements ServiceOrderRepositoryContract
 
         $q = trim((string) ($filters['q'] ?? ''));
         if ($q !== '') {
-            $where[] = ' AND (so.numero_os LIKE :q OR so.service_name LIKE :q OR c.name LIKE :q OR c.company LIKE :q OR u.name LIKE :q)';
-            $params[':q'] = '%' . $q . '%';
+            $where[] = ' AND (so.numero_os LIKE :q1 OR so.service_name LIKE :q2 OR c.name LIKE :q3 OR c.company LIKE :q4 OR u.name LIKE :q5)';
+            $needle = '%' . $q . '%';
+            $params[':q1'] = $needle;
+            $params[':q2'] = $needle;
+            $params[':q3'] = $needle;
+            $params[':q4'] = $needle;
+            $params[':q5'] = $needle;
         }
 
         foreach (['client_id', 'assigned_user_id'] as $field) {

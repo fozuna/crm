@@ -9,6 +9,8 @@ $filters = is_array($filters ?? null) ? $filters : [];
 $report = is_array($report ?? null) ? $report : [];
 $rows = is_array($report['rows'] ?? null) ? $report['rows'] : [];
 $totals = is_array($report['totals'] ?? null) ? $report['totals'] : [];
+$reportTotal = (int) ($report['total'] ?? count($rows));
+$reportTruncated = ($report['truncated'] ?? false) === true;
 $canManage = ($canManage ?? false) === true;
 ?>
 
@@ -108,8 +110,16 @@ $canManage = ($canManage ?? false) === true;
   </div>
 </div>
 
+<?php if ($reportTruncated): ?>
+  <div class="mt-6 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 px-4 py-3 text-sm">
+    Este relatório encontrou <?= $reportTotal ?> OS para os filtros informados, mas está exibindo apenas as <?= count($rows) ?> mais recentes por limite de segurança de carga. Refine os filtros (período, cliente ou status) para ver o restante.
+  </div>
+<?php endif; ?>
+
 <div class="mt-6 tr-card overflow-hidden">
-  <div class="p-6 font-semibold">Ordens incluídas no relatório</div>
+  <div class="p-6 font-semibold">Ordens incluídas no relatório
+    <span class="font-normal text-slate-600">(<?= count($rows) ?> de <?= $reportTotal ?>)</span>
+  </div>
   <div class="overflow-x-auto">
     <table class="w-full text-sm">
       <thead class="text-slate-700">

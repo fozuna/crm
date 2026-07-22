@@ -1,26 +1,23 @@
 <?php
 use App\Core\UI;
 use App\Core\View;
-use App\Services\InstallmentCharges;
 
 $title = 'Relatórios financeiros';
-$data = is_array($data ?? null) ? $data : [];
+$report = is_array($report ?? null) ? $report : [];
 $filters = is_array($filters ?? null) ? $filters : [];
 
-$legacy = is_array($data['legacy'] ?? null) ? $data['legacy'] : [];
-$legacyDel = is_array($legacy['delinquency'] ?? null) ? $legacy['delinquency'] : [];
-$metrics = is_array($data['metrics'] ?? null) ? $data['metrics'] : [];
-$totals = is_array($metrics['totals'] ?? null) ? $metrics['totals'] : [];
-$m = is_array($metrics['metrics'] ?? null) ? $metrics['metrics'] : [];
-$cashflow = is_array($data['cashflow'] ?? null) ? $data['cashflow'] : [];
-$installments = is_array($data['installments']['rows'] ?? null) ? $data['installments']['rows'] : [];
-$payments = is_array($data['payments']['rows'] ?? null) ? $data['payments']['rows'] : [];
-$installmentsPage = (int) ($data['installments']['page'] ?? 1);
-$paymentsPage = (int) ($data['payments']['page'] ?? 1);
-$perPage = (int) ($data['installments']['per_page'] ?? 30);
+$totals = is_array($report['totals'] ?? null) ? $report['totals'] : [];
+$cashflow = is_array($report['cashflow'] ?? null) ? $report['cashflow'] : [];
+$installments = is_array($report['installments']['rows'] ?? null) ? $report['installments']['rows'] : [];
+$payments = is_array($report['payments']['rows'] ?? null) ? $report['payments']['rows'] : [];
+$installmentsPage = (int) ($report['installments']['page'] ?? 1);
+$paymentsPage = (int) ($report['payments']['page'] ?? 1);
+$perPage = (int) ($report['installments']['per_page'] ?? 30);
 $perPage = max(1, $perPage);
-$installmentsTotal = (int) ($data['installments']['total'] ?? 0);
+$installmentsTotal = (int) ($report['installments']['total'] ?? 0);
 $installmentsTotal = max($installmentsTotal, count($installments));
+$paymentsTotal = (int) ($report['payments']['total'] ?? 0);
+$paymentsTotal = max($paymentsTotal, count($payments));
 
 $from = (string) ($filters['from'] ?? '');
 $to = (string) ($filters['to'] ?? '');
@@ -32,29 +29,28 @@ $direction = strtolower((string) ($filters['direction'] ?? 'asc')) === 'desc' ? 
 
 $fromDisplay = $from;
 $toDisplay = $to;
-$delinqRate = (float) ($m['delinquency_rate'] ?? 0);
+$delinqRate = (float) ($totals['delinquency_rate'] ?? 0);
 $installmentsCount = count($installments);
 $paymentsCount = count($payments);
-$today = date('Y-m-d');
 
 $statusOptions = [
   '' => 'Todos',
-  'pendente' => 'Pendente',
-  'reaberto' => 'Reaberto',
-  'vencida' => 'Vencida',
-  'pago' => 'Paga',
-  'adiantado' => 'Adiantada',
-  'cancelado' => 'Cancelada',
+  'pending' => 'Pendente',
+  'partially_paid' => 'Parcialmente pago',
+  'paid' => 'Pago',
+  'overdue' => 'Vencido',
+  'canceled' => 'Cancelado',
+  'renegotiated' => 'Renegociado',
 ];
 $sortOptions = [
   'due_date' => 'Vencimento',
-  'installment_no' => 'Número da parcela',
-  'project' => 'Projeto',
   'client' => 'Cliente',
+  'project' => 'Projeto',
   'status' => 'Status',
-  'amount' => 'Valor',
-  'paid_amount' => 'Valor pago',
-  'open_amount' => 'Saldo em aberto',
+  'amount' => 'Valor original',
+  'remaining' => 'Saldo em aberto',
+  'days_overdue' => 'Dias em atraso',
+  'created_at' => 'Criado em',
 ];
 $queryFilters = array_filter($filters, static function ($value): bool {
   if (is_int($value)) {
@@ -73,31 +69,31 @@ foreach ($cashflow as $r) {
 <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
   <div>
     <div class="text-2xl font-semibold">Relatórios financeiros</div>
-    <div class="text-slate-600 mt-1">Consulta consolidada de parcelas, recebimentos e inadimplência.</div>
+    <div class="text-slate-600 mt-1">Consulta consolidada de títulos, recebimentos e inadimplência — mesma fonte de dados do Dashboard Financeiro.</div>
   </div>
   <div class="text-sm text-slate-600">
-    Parcelas listadas: <span class="font-semibold"><?= (int) $installmentsCount ?></span>
-    | Pagamentos listados: <span class="font-semibold"><?= (int) $paymentsCount ?></span>
+    Títulos listados: <span class="font-semibold"><?= (int) $installmentsCount ?></span> de <span class="font-semibold"><?= (int) $installmentsTotal ?></span>
+    | Pagamentos listados: <span class="font-semibold"><?= (int) $paymentsCount ?></span> de <span class="font-semibold"><?= (int) $paymentsTotal ?></span>
   </div>
 </div>
 
 <div class="mt-6 tr-card p-6">
   <form method="get" action="<?= View::e($base . '/relatorios/financeiro') ?>" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
     <div>
-      <label class="tr-label">De</label>
+      <label class="tr-label">De (vencimento)</label>
       <input name="from" type="date" class="mt-1 tr-input" value="<?= View::e($fromDisplay) ?>" placeholder="YYYY-MM-DD">
     </div>
     <div>
-      <label class="tr-label">Até</label>
+      <label class="tr-label">Até (vencimento)</label>
       <input name="to" type="date" class="mt-1 tr-input" value="<?= View::e($toDisplay) ?>" placeholder="YYYY-MM-DD">
     </div>
     <div>
       <label class="tr-label">Projeto ID</label>
-      <input name="project_id" class="mt-1 tr-input" value="<?= $projectId > 0 ? (int) $projectId : '' ?>" placeholder="ex: 12">
+      <input name="project_id" class="mt-1 tr-input" value="<?= $projectId > 0 ? (int) $projectId : '' ?>" placeholder="Vazio = todos">
     </div>
     <div>
       <label class="tr-label">Cliente ID</label>
-      <input name="client_id" class="mt-1 tr-input" value="<?= $clientId > 0 ? (int) $clientId : '' ?>" placeholder="ex: 5">
+      <input name="client_id" class="mt-1 tr-input" value="<?= $clientId > 0 ? (int) $clientId : '' ?>" placeholder="Vazio = todos">
     </div>
     <div>
       <label class="tr-label">Status</label>
@@ -108,7 +104,7 @@ foreach ($cashflow as $r) {
       </select>
     </div>
     <div>
-      <label class="tr-label">Ordenar parcelas por</label>
+      <label class="tr-label">Ordenar títulos por</label>
       <select name="sort" class="mt-1 tr-input">
         <?php foreach ($sortOptions as $key => $label): ?>
           <option value="<?= View::e($key) ?>" <?= $sort === $key ? 'selected' : '' ?>><?= View::e($label) ?></option>
@@ -138,7 +134,7 @@ foreach ($cashflow as $r) {
     </div>
   </form>
   <div class="mt-4 text-sm text-slate-600">
-    Use os filtros para refinar o período e exporte o resultado consolidado em PDF ou Excel (.xlsx).
+    O período filtra pelo <strong>vencimento</strong> dos títulos em aberto/vencidos e pela <strong>data de pagamento</strong> dos recebimentos. Cliente e Projeto vazios (ou 0) representam "Todos". Exporte o resultado consolidado em PDF ou Excel (.xlsx).
   </div>
 </div>
 
@@ -146,22 +142,22 @@ foreach ($cashflow as $r) {
   <div class="tr-card p-5">
     <div class="text-sm text-slate-600">A receber</div>
     <div class="text-2xl font-semibold mt-2">R$ <?= number_format((float) ($totals['receivable'] ?? 0), 2, ',', '.') ?></div>
-    <div class="text-sm text-slate-600 mt-2">Saldo ainda em aberto no período filtrado.</div>
+    <div class="text-sm text-slate-600 mt-2">Saldo ainda em aberto dos títulos válidos no período (vencimento).</div>
   </div>
   <div class="tr-card p-5">
     <div class="text-sm text-slate-600">Recebido</div>
     <div class="text-2xl font-semibold mt-2">R$ <?= number_format((float) ($totals['received'] ?? 0), 2, ',', '.') ?></div>
-    <div class="text-sm text-slate-600 mt-2">Pagamentos registrados dentro do período informado.</div>
+    <div class="text-sm text-slate-600 mt-2">Pagamentos efetivamente registrados dentro do período (data do pagamento).</div>
   </div>
   <div class="tr-card p-5">
     <div class="text-sm text-slate-600">Vencido</div>
     <div class="text-2xl font-semibold mt-2">R$ <?= number_format((float) ($totals['overdue'] ?? 0), 2, ',', '.') ?></div>
-    <div class="text-sm text-slate-600 mt-2">Taxa de inadimplência: <span class="font-semibold"><?= number_format($delinqRate * 100, 2, ',', '.') ?>%</span></div>
+    <div class="text-sm text-slate-600 mt-2">Taxa de inadimplência: <span class="font-semibold"><?= number_format($delinqRate * 100, 2, ',', '.') ?>%</span> (saldo vencido ÷ total a receber)</div>
   </div>
 </div>
 
 <div class="mt-6 tr-card overflow-hidden">
-  <div class="p-6 font-semibold">Fluxo de caixa em aberto por mês</div>
+  <div class="p-6 font-semibold">Fluxo de caixa em aberto por mês (vencimento)</div>
   <div class="px-6 pb-2">
     <svg viewBox="0 0 600 160" class="w-full h-40">
       <?php
@@ -219,8 +215,8 @@ foreach ($cashflow as $r) {
 <div class="mt-6 tr-card overflow-hidden">
   <div class="p-6 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
     <div>
-      <div class="font-semibold">Parcelas do relatório</div>
-      <div class="text-sm text-slate-600">Tabela somente leitura com os dados financeiros consolidados.</div>
+      <div class="font-semibold">Títulos do relatório</div>
+      <div class="text-sm text-slate-600">Tabela somente leitura com os títulos consolidados (propostas/projetos, ordens de serviço, contratos e lançamentos manuais).</div>
     </div>
     <div class="text-sm text-slate-600">
       Ordenação atual: <span class="font-semibold"><?= View::e($sortOptions[$sort] ?? 'Vencimento') ?></span>
@@ -232,69 +228,57 @@ foreach ($cashflow as $r) {
       <thead class="text-slate-700">
         <tr>
           <th class="text-left py-3 px-4">ID</th>
-          <th class="text-left py-3 px-4">Projeto ID</th>
-          <th class="text-left py-3 px-4">Proposta ID</th>
+          <th class="text-left py-3 px-4">Origem</th>
           <th class="text-left py-3 px-4">Venc.</th>
-          <th class="text-left py-3 px-4">Nº</th>
+          <th class="text-left py-3 px-4">Título</th>
           <th class="text-left py-3 px-4">Projeto</th>
           <th class="text-left py-3 px-4">Cliente</th>
           <th class="text-left py-3 px-4">Status</th>
-          <th class="text-left py-3 px-4">Valor</th>
-          <th class="text-left py-3 px-4">Pago</th>
-          <th class="text-left py-3 px-4">Aberto</th>
-          <th class="text-left py-3 px-4">Pago em</th>
-          <th class="text-left py-3 px-4">Cancelado em</th>
-          <th class="text-left py-3 px-4">Multa</th>
-          <th class="text-left py-3 px-4">Juros</th>
-          <th class="text-left py-3 px-4">Total</th>
+          <th class="text-left py-3 px-4">Valor original</th>
+          <th class="text-left py-3 px-4">Recebido</th>
+          <th class="text-left py-3 px-4">Saldo</th>
+          <th class="text-left py-3 px-4">Dias em atraso</th>
         </tr>
       </thead>
       <tbody>
         <?php if ($installmentsCount === 0): ?>
           <tr>
-            <td class="px-4 py-6 text-slate-600" colspan="16">
-              Sem parcelas para os filtros informados.
+            <td class="px-4 py-6 text-slate-600" colspan="11">
+              Sem títulos para os filtros informados.
             </td>
           </tr>
         <?php endif; ?>
+        <?php
+          $statusLabels = [
+            'pending' => 'Pendente',
+            'partially_paid' => 'Parcialmente pago',
+            'paid' => 'Pago',
+            'overdue' => 'Vencido',
+            'canceled' => 'Cancelado',
+            'renegotiated' => 'Renegociado',
+          ];
+        ?>
         <?php foreach ($installments as $r): ?>
           <?php
             $due = (string) ($r['due_date'] ?? '');
             $dueTxt = $due !== '' ? date('d/m/Y', strtotime($due)) : '—';
-            $open = (float) ($r['open_amount'] ?? 0);
             $st = (string) ($r['status'] ?? '');
-            $paidAt = (string) ($r['paid_at'] ?? '');
-            $paidTxt = $paidAt !== '' ? date('d/m/Y H:i', strtotime($paidAt)) : '—';
-            $canceledAt = (string) ($r['canceled_at'] ?? '');
-            $canceledTxt = $canceledAt !== '' ? date('d/m/Y H:i', strtotime($canceledAt)) : '—';
-            if (($st === 'pendente' || $st === 'reaberto') && $due !== '' && $due < $today) {
-              $st = 'vencida';
-            } elseif ($st === 'pago' && $paidAt !== '' && $due !== '' && substr($paidAt, 0, 10) < $due) {
-              $st = 'adiantada';
-            }
-            $charges = InstallmentCharges::compute($open, $due, $today);
-            $penalty = (float) ($charges['penalty'] ?? 0);
-            $interest = (float) ($charges['interest'] ?? 0);
-            $total = (float) ($charges['total'] ?? $open);
             $clientCompany = trim((string) ($r['client_company'] ?? ''));
+            $projectTitle = trim((string) ($r['project_title'] ?? ''));
+            $daysOverdue = (int) ($r['days_overdue'] ?? 0);
           ?>
           <tr class="border-t">
             <td class="px-4 py-3 whitespace-nowrap"><?= (int) ($r['id'] ?? 0) ?></td>
-            <td class="px-4 py-3 whitespace-nowrap"><?= (int) ($r['project_id'] ?? 0) ?></td>
-            <td class="px-4 py-3 whitespace-nowrap"><?= (int) ($r['proposal_id'] ?? 0) ?></td>
+            <td class="px-4 py-3 whitespace-nowrap"><?= View::e((string) ($r['origin'] ?? '—')) ?></td>
             <td class="px-4 py-3 whitespace-nowrap"><?= View::e($dueTxt) ?></td>
-            <td class="px-4 py-3 whitespace-nowrap"><?= (int) ($r['installment_no'] ?? 0) ?></td>
-            <td class="px-4 py-3"><?= View::e((string) ($r['project_title'] ?? '')) ?></td>
+            <td class="px-4 py-3"><?= View::e((string) ($r['title'] ?? '')) ?></td>
+            <td class="px-4 py-3"><?= View::e($projectTitle !== '' ? $projectTitle : '—') ?></td>
             <td class="px-4 py-3"><?= View::e($clientCompany !== '' ? $clientCompany : '—') ?></td>
-            <td class="px-4 py-3"><?= View::e($st) ?></td>
-            <td class="px-4 py-3">R$ <?= number_format((float) ($r['amount'] ?? 0), 2, ',', '.') ?></td>
-            <td class="px-4 py-3">R$ <?= number_format((float) ($r['paid_amount'] ?? 0), 2, ',', '.') ?></td>
-            <td class="px-4 py-3">R$ <?= number_format($open, 2, ',', '.') ?></td>
-            <td class="px-4 py-3 whitespace-nowrap"><?= View::e($paidTxt) ?></td>
-            <td class="px-4 py-3 whitespace-nowrap"><?= View::e($canceledTxt) ?></td>
-            <td class="px-4 py-3">R$ <?= number_format($penalty, 2, ',', '.') ?></td>
-            <td class="px-4 py-3">R$ <?= number_format($interest, 2, ',', '.') ?></td>
-            <td class="px-4 py-3 font-semibold">R$ <?= number_format($total, 2, ',', '.') ?></td>
+            <td class="px-4 py-3"><?= View::e($statusLabels[$st] ?? $st) ?></td>
+            <td class="px-4 py-3">R$ <?= number_format((float) ($r['original_amount'] ?? 0), 2, ',', '.') ?></td>
+            <td class="px-4 py-3">R$ <?= number_format((float) ($r['received_amount'] ?? 0), 2, ',', '.') ?></td>
+            <td class="px-4 py-3 font-semibold">R$ <?= number_format((float) ($r['remaining_amount'] ?? 0), 2, ',', '.') ?></td>
+            <td class="px-4 py-3"><?= $daysOverdue > 0 ? (int) $daysOverdue : '—' ?></td>
           </tr>
         <?php endforeach; ?>
       </tbody>
@@ -317,7 +301,7 @@ foreach ($cashflow as $r) {
   <div class="p-6 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
     <div>
       <div class="font-semibold">Pagamentos do período</div>
-      <div class="text-sm text-slate-600">Amostra dos recebimentos registrados para os filtros aplicados.</div>
+      <div class="text-sm text-slate-600">Recebimentos registrados (não estornados) para os filtros aplicados, pela data de pagamento.</div>
     </div>
   </div>
   <div class="overflow-x-auto">
@@ -325,28 +309,31 @@ foreach ($cashflow as $r) {
       <thead class="text-slate-700">
         <tr>
           <th class="text-left py-3 px-4">Pago em</th>
+          <th class="text-left py-3 px-4">Título</th>
           <th class="text-left py-3 px-4">Projeto</th>
           <th class="text-left py-3 px-4">Cliente</th>
           <th class="text-left py-3 px-4">Método</th>
-          <th class="text-left py-3 px-4">Valor</th>
+          <th class="text-left py-3 px-4">Valor líquido</th>
         </tr>
       </thead>
       <tbody>
         <?php if ($paymentsCount === 0): ?>
-          <tr><td class="px-4 py-6 text-slate-600" colspan="5">Sem pagamentos para os filtros informados.</td></tr>
+          <tr><td class="px-4 py-6 text-slate-600" colspan="6">Sem pagamentos para os filtros informados.</td></tr>
         <?php endif; ?>
         <?php foreach ($payments as $r): ?>
           <?php
-            $paidAt = (string) ($r['paid_at'] ?? '');
+            $paidAt = (string) ($r['payment_date'] ?? '');
             $paidTxt = $paidAt !== '' ? date('d/m/Y H:i', strtotime($paidAt)) : '—';
-            $amt = (float) ($r['amount'] ?? 0);
+            $amt = (float) ($r['net_amount'] ?? 0);
             $clientCompany = trim((string) ($r['client_company'] ?? ''));
+            $projectTitle = trim((string) ($r['project_title'] ?? ''));
           ?>
           <tr class="border-t">
             <td class="px-4 py-3 whitespace-nowrap"><?= View::e($paidTxt) ?></td>
-            <td class="px-4 py-3"><?= View::e((string) ($r['project_title'] ?? '')) ?></td>
+            <td class="px-4 py-3"><?= View::e((string) ($r['title'] ?? '')) ?></td>
+            <td class="px-4 py-3"><?= View::e($projectTitle !== '' ? $projectTitle : '—') ?></td>
             <td class="px-4 py-3"><?= View::e($clientCompany !== '' ? $clientCompany : '—') ?></td>
-            <td class="px-4 py-3"><?= View::e((string) ($r['method'] ?? '')) ?></td>
+            <td class="px-4 py-3"><?= View::e((string) ($r['payment_method'] ?? '—')) ?></td>
             <td class="px-4 py-3">R$ <?= number_format($amt, 2, ',', '.') ?></td>
           </tr>
         <?php endforeach; ?>
@@ -359,14 +346,9 @@ foreach ($cashflow as $r) {
       <?php if ($paymentsPage > 1): ?>
         <a class="tr-btn" href="<?= View::e($pageLink(['pay_page' => $paymentsPage - 1])) ?>">Anterior</a>
       <?php endif; ?>
-      <?php if ($paymentsCount === $perPage): ?>
+      <?php if (($paymentsPage * $perPage) < $paymentsTotal): ?>
         <a class="tr-btn" href="<?= View::e($pageLink(['pay_page' => $paymentsPage + 1])) ?>">Próxima</a>
       <?php endif; ?>
     </div>
   </div>
-</div>
-
-<div class="mt-6 tr-card p-6">
-  <div class="text-sm text-slate-600">Legado</div>
-  <div class="mt-2 text-sm text-slate-700">Inadimplência (legado): R$ <?= number_format((float) ($legacyDel['total'] ?? 0), 2, ',', '.') ?> | Parcelas em atraso: <?= (int) ($legacyDel['count'] ?? 0) ?></div>
 </div>

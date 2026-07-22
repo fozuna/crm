@@ -6,6 +6,7 @@ namespace App\Contracts;
 interface ServiceOrderRepositoryContract
 {
     public function paginate(array $filters, int $page = 1, int $perPage = 20): array;
+    public function reportRows(array $filters, int $limit = 2000): array;
     public function find(int $id): ?array;
     public function create(array $data, int $actorId): int;
     public function update(int $id, array $data, int $actorId): void;

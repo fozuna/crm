@@ -209,8 +209,10 @@ final class ServiceOrderService
 
     public function report(array $filters): array
     {
-        $pageData = $this->orderRepo()->paginate($filters, 1, 500);
-        $rows = is_array($pageData['rows'] ?? null) ? $pageData['rows'] : [];
+        $reportData = $this->orderRepo()->reportRows($filters);
+        $rows = is_array($reportData['rows'] ?? null) ? $reportData['rows'] : [];
+        $total = (int) ($reportData['total'] ?? count($rows));
+        $limit = (int) ($reportData['limit'] ?? count($rows));
         $totals = [
             'aberto' => 0,
             'em_andamento' => 0,
@@ -244,6 +246,9 @@ final class ServiceOrderService
         return [
             'rows' => $rows,
             'totals' => $totals,
+            'total' => $total,
+            'limit' => $limit,
+            'truncated' => $total > count($rows),
         ];
     }
 

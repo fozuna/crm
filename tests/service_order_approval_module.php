@@ -42,6 +42,11 @@ class FakeApprovalOrderRepository implements ServiceOrderRepositoryContract
         return ['rows' => [$this->row], 'page' => 1, 'per_page' => 20, 'total' => 1, 'pages' => 1];
     }
 
+    public function reportRows(array $filters, int $limit = 2000): array
+    {
+        return ['rows' => [$this->row], 'total' => 1, 'limit' => $limit];
+    }
+
     public function find(int $id): ?array
     {
         return (int) ($this->row['id'] ?? 0) === $id ? $this->row : null;

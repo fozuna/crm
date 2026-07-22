@@ -6,50 +6,63 @@ namespace App\Controllers;
 use App\Core\Csrf;
 use App\Core\Request;
 use App\Core\View;
-use App\Repositories\FinanceReportRepository;
 use App\Repositories\FinanceRevenueRepository;
+use App\Repositories\FinancialReceiptRepository;
+use App\Repositories\FinancialReceivableRepository;
+use App\Services\CompanyContext;
 use App\Services\CompanyProfileService;
-use App\Services\InstallmentCharges;
 use App\Services\PdfStandardTheme;
 use App\Services\ProfessionalPdf;
 use App\Services\FinanceTrace;
 use App\Services\XlsxBuilder;
 
+/**
+ * Fonte de verdade financeira deste relatório: financial_accounts_receivable /
+ * financial_receipts (módulo "enterprise"), a mesma usada por /financeiro/dashboard.
+ *
+ * Até 2026-07, este relatório lia exclusivamente finance_installments (módulo
+ * "legado", ligado a proposta -> projeto), o que o tornava estruturalmente incapaz de
+ * exibir qualquer título nascido de Ordem de Serviço, renegociação ou lançamento
+ * manual do módulo enterprise — o Dashboard Financeiro (/financeiro/dashboard) já
+ * lia a fonte correta e por isso mostrava valores que este relatório sempre omitiu.
+ * Ver CRM_AUDIT.md, achado P02, e SPRINT_FINANCE_REPORT_FIX.md para o diagnóstico completo.
+ */
 final class ReportController
 {
     public function finance(Request $request): void
     {
-        $months = 1;
+        $companyId = CompanyContext::currentCompanyId();
         $filters = $this->reportFilters($request);
         $installmentsPage = max(1, (int) $request->input('ins_page', 1));
         $paymentsPage = max(1, (int) $request->input('pay_page', 1));
         $perPage = (int) $request->input('per_page', 30);
-        $perPage = max(5, min(200, $perPage));
+        $perPage = max(5, min(100, $perPage));
 
-        $report = (new FinanceReportRepository())->summary($months);
-        $rev = new FinanceRevenueRepository();
-        [$from, $to] = $rev->effectiveRange((string) ($filters['from'] ?? ''), (string) ($filters['to'] ?? ''));
-        $filters['from'] = $from;
-        $filters['to'] = $to;
-        $metrics = $rev->metrics($filters);
-        $cashflow = $rev->cashflowBuckets($filters, $months);
-        $installments = $rev->listInstallments($filters, $installmentsPage, $perPage);
-        $payments = $rev->listPayments($filters, $paymentsPage, $perPage);
+        $filters = $this->normalizedRange($filters);
+        $farFilters = $this->toReceivableFilters($filters);
 
-        $insRows = is_array($installments['rows'] ?? null) ? $installments['rows'] : [];
-        $payRows = is_array($payments['rows'] ?? null) ? $payments['rows'] : [];
+        $receivableRepo = new FinancialReceivableRepository();
+        $receiptRepo = new FinancialReceiptRepository();
+
+        $totals = $receivableRepo->totals($companyId, $farFilters);
+        $cashflow = $receivableRepo->cashflowBuckets($companyId, $farFilters);
+        $installments = $receivableRepo->paginate($companyId, $farFilters, $installmentsPage, $perPage);
+        $payments = $receiptRepo->listByPeriod($companyId, $farFilters, $paymentsPage, $perPage);
+
+        $installments['rows'] = $this->withOrigin($receivableRepo, $installments['rows']);
+
+        $insRows = $installments['rows'];
+        $payRows = $payments['rows'];
         FinanceTrace::log('reports.finance', [
             'filters' => $filters,
-            'months' => $months,
-            'totals' => $metrics['totals'] ?? null,
-            'cashflow_count' => is_array($cashflow) ? count($cashflow) : null,
+            'totals' => $totals,
+            'cashflow_count' => count($cashflow),
             'installments_count' => count($insRows),
             'payments_count' => count($payRows),
         ]);
 
-        $data = [
-            'legacy' => $report,
-            'metrics' => $metrics,
+        $report = [
+            'totals' => $totals,
             'cashflow' => $cashflow,
             'installments' => $installments,
             'payments' => $payments,
@@ -57,48 +70,44 @@ final class ReportController
         View::render('reports/finance', [
             'csrf' => Csrf::token(),
             'base' => $request->basePath(),
-            'months' => $months,
             'filters' => $filters,
-            'data' => $data,
+            'report' => $report,
         ]);
     }
 
     public function financeExportExcel(Request $request): void
     {
-        $filters = $this->reportFilters($request);
+        $companyId = CompanyContext::currentCompanyId();
+        $filters = $this->normalizedRange($this->reportFilters($request));
+        $farFilters = $this->toReceivableFilters($filters);
 
-        $rev = new FinanceRevenueRepository();
-        [$from, $to] = $rev->effectiveRange((string) ($filters['from'] ?? ''), (string) ($filters['to'] ?? ''));
-        $filters['from'] = $from;
-        $filters['to'] = $to;
-        $res = $rev->listInstallments($filters, 1, 2000);
-        $rows = is_array($res['rows'] ?? null) ? $res['rows'] : [];
-        $exportRows = $this->installmentExportRows($rows);
+        $receivableRepo = new FinancialReceivableRepository();
+        $report = $receivableRepo->reportRows($companyId, $farFilters, 2000);
+        $rows = $this->withOrigin($receivableRepo, $report['rows']);
+
         $xlsxRows = [];
-        foreach ($exportRows as $row) {
+        foreach ($rows as $row) {
             $xlsxRows[] = [
-                $row['due_date'],
-                $row['installment_no'],
-                $row['project_title'],
-                $row['client_company'],
-                $row['status'],
-                $row['amount'],
-                $row['paid_amount'],
-                $row['open_amount'],
-                $row['penalty'],
-                $row['interest'],
-                $row['total'],
+                $this->displayDate((string) ($row['due_date'] ?? '')),
+                (string) ($row['title'] ?? ''),
+                (string) ($row['origin'] ?? ''),
+                trim((string) ($row['project_title'] ?? '')) !== '' ? (string) $row['project_title'] : '—',
+                trim((string) ($row['client_company'] ?? '')) !== '' ? (string) $row['client_company'] : '—',
+                $this->statusLabel((string) ($row['status'] ?? '')),
+                (float) ($row['original_amount'] ?? 0),
+                (float) ($row['received_amount'] ?? 0),
+                (float) ($row['remaining_amount'] ?? 0),
             ];
         }
 
         $bytes = (new XlsxBuilder())->build(
-            ['Vencimento','Parcela','Projeto','Cliente','Status','Valor','Pago','Aberto','Multa','Juros','Total'],
+            ['Vencimento', 'Título', 'Origem', 'Projeto', 'Cliente', 'Status', 'Valor original', 'Recebido', 'Saldo'],
             $xlsxRows,
             'Relatorio Financeiro'
         );
 
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="relatorio-financeiro-parcelas.xlsx"');
+        header('Content-Disposition: attachment; filename="relatorio-financeiro.xlsx"');
         header('Content-Length: ' . strlen($bytes));
         echo $bytes;
         exit;
@@ -106,16 +115,14 @@ final class ReportController
 
     public function financeExportPdf(Request $request): void
     {
-        $filters = $this->reportFilters($request);
+        $companyId = CompanyContext::currentCompanyId();
+        $filters = $this->normalizedRange($this->reportFilters($request));
+        $farFilters = $this->toReceivableFilters($filters);
 
-        $rev = new FinanceRevenueRepository();
-        [$from, $to] = $rev->effectiveRange((string) ($filters['from'] ?? ''), (string) ($filters['to'] ?? ''));
-        $filters['from'] = $from;
-        $filters['to'] = $to;
-        $metrics = $rev->metrics($filters);
-        $res = $rev->listInstallments($filters, 1, 1000);
-        $rows = is_array($res['rows'] ?? null) ? $res['rows'] : [];
-        $exportRows = $this->installmentExportRows($rows);
+        $receivableRepo = new FinancialReceivableRepository();
+        $totals = $receivableRepo->totals($companyId, $farFilters);
+        $report = $receivableRepo->reportRows($companyId, $farFilters, 1000);
+        $exportRows = $this->withOrigin($receivableRepo, $report['rows']);
 
         $branding = [];
         try {
@@ -131,9 +138,9 @@ final class ReportController
         $pdf->rect(50, $y - 94, 495, 94, 'F');
         $pdf->setFillColor(255, 255, 255);
         $pdf->setFont('F2', 18);
-        $pdf->text(68, $y - 28, 'Relatório Financeiro - Parcelas');
+        $pdf->text(68, $y - 28, 'Relatório Financeiro');
         $pdf->setFont('F1', 11);
-        $pdf->text(68, $y - 46, 'Visão consolidada das parcelas geradas, recebidas e vencidas no período filtrado.');
+        $pdf->text(68, $y - 46, 'Visão consolidada dos títulos, recebimentos e inadimplência no período filtrado.');
         $y -= 114;
 
         $pdf->setFillColor(26, 26, 26);
@@ -145,7 +152,13 @@ final class ReportController
         $pdf->text(50, $y, $sortLabel);
         $y -= 14;
 
-        $totals = is_array(($metrics['totals'] ?? null)) ? $metrics['totals'] : [];
+        if ($report['truncated']) {
+            $pdf->setFillColor(180, 83, 9);
+            $pdf->text(50, $y, 'Aviso: total de ' . $report['total'] . ' títulos no período; exibindo os primeiros ' . count($exportRows) . '. Refine os filtros para ver o restante.');
+            $pdf->setFillColor(26, 26, 26);
+            $y -= 14;
+        }
+
         $kpiLine = 'A receber: R$ ' . number_format((float) ($totals['receivable'] ?? 0), 2, ',', '.') . '  |  Recebido: R$ ' . number_format((float) ($totals['received'] ?? 0), 2, ',', '.') . '  |  Vencido: R$ ' . number_format((float) ($totals['overdue'] ?? 0), 2, ',', '.');
         $pdf->text(50, $y, $kpiLine);
         $y -= 26;
@@ -155,11 +168,11 @@ final class ReportController
         $pdf->setFillColor(41, 50, 65);
         $pdf->setFont('F2', 11);
         $pdf->text(58, $y - 16, 'Venc.');
-        $pdf->text(108, $y - 16, 'N');
-        $pdf->text(138, $y - 16, 'Projeto');
-        $pdf->text(268, $y - 16, 'Cliente');
-        $pdf->text(388, $y - 16, 'Status');
-        $pdf->text(458, $y - 16, 'Total');
+        $pdf->text(108, $y - 16, 'Origem');
+        $pdf->text(178, $y - 16, 'Projeto/Título');
+        $pdf->text(318, $y - 16, 'Cliente');
+        $pdf->text(418, $y - 16, 'Status');
+        $pdf->text(468, $y - 16, 'Saldo');
         $y -= 34;
         $pdf->setFont('F1', 11);
 
@@ -169,7 +182,7 @@ final class ReportController
                 $y = PdfStandardTheme::renderHeaderMinimal($pdf, $branding, 595, 842, 50, 54, 4, 28, 200, 32);
                 $pdf->setFillColor(41, 50, 65);
                 $pdf->setFont('F2', 12);
-                $pdf->text(50, $y, 'Relatório Financeiro - Parcelas (continuação)');
+                $pdf->text(50, $y, 'Relatório Financeiro (continuação)');
                 $y -= 18;
                 $pdf->setFillColor(241, 245, 249);
                 $pdf->setStrokeColor(203, 213, 225);
@@ -177,24 +190,25 @@ final class ReportController
                 $pdf->setFillColor(41, 50, 65);
                 $pdf->setFont('F2', 11);
                 $pdf->text(58, $y - 16, 'Venc.');
-                $pdf->text(108, $y - 16, 'N');
-                $pdf->text(138, $y - 16, 'Projeto');
-                $pdf->text(268, $y - 16, 'Cliente');
-                $pdf->text(388, $y - 16, 'Status');
-                $pdf->text(458, $y - 16, 'Total');
+                $pdf->text(108, $y - 16, 'Origem');
+                $pdf->text(178, $y - 16, 'Projeto/Título');
+                $pdf->text(318, $y - 16, 'Cliente');
+                $pdf->text(418, $y - 16, 'Status');
+                $pdf->text(468, $y - 16, 'Saldo');
                 $y -= 34;
                 $pdf->setFont('F1', 11);
             }
 
-            $project = (string) ($r['project_title'] ?? '');
-            $client = (string) ($r['client_company'] ?? '—');
-            $status = (string) ($r['status'] ?? '');
-            $pdf->text(50, $y, (string) ($r['due_date'] ?? '—'));
-            $pdf->text(100, $y, (string) ($r['installment_no'] ?? '0'));
-            $pdf->text(130, $y, mb_strlen($project) > 20 ? (mb_substr($project, 0, 20) . '…') : $project);
-            $pdf->text(260, $y, mb_strlen($client) > 18 ? (mb_substr($client, 0, 18) . '…') : $client);
-            $pdf->text(380, $y, $status);
-            $pdf->text(450, $y, 'R$ ' . number_format((float) ($r['total'] ?? 0), 2, ',', '.'));
+            $project = trim((string) ($r['project_title'] ?? '')) !== '' ? (string) $r['project_title'] : (string) ($r['title'] ?? '');
+            $client = trim((string) ($r['client_company'] ?? '')) !== '' ? (string) $r['client_company'] : '—';
+            $origin = (string) ($r['origin'] ?? '');
+            $status = $this->statusLabel((string) ($r['status'] ?? ''));
+            $pdf->text(50, $y, $this->displayDate((string) ($r['due_date'] ?? '')));
+            $pdf->text(100, $y, mb_strlen($origin) > 12 ? (mb_substr($origin, 0, 12) . '…') : $origin);
+            $pdf->text(170, $y, mb_strlen($project) > 24 ? (mb_substr($project, 0, 24) . '…') : $project);
+            $pdf->text(310, $y, mb_strlen($client) > 16 ? (mb_substr($client, 0, 16) . '…') : $client);
+            $pdf->text(410, $y, $status);
+            $pdf->text(460, $y, 'R$ ' . number_format((float) ($r['remaining_amount'] ?? 0), 2, ',', '.'));
             $y -= 14;
         }
 
@@ -202,7 +216,7 @@ final class ReportController
 
         $bytes = $pdf->output();
         header('Content-Type: application/pdf');
-        header('Content-Disposition: attachment; filename="relatorio-financeiro-parcelas.pdf"');
+        header('Content-Disposition: attachment; filename="relatorio-financeiro.pdf"');
         echo $bytes;
         exit;
     }
@@ -220,48 +234,94 @@ final class ReportController
         ];
     }
 
-    private function installmentExportRows(array $rows): array
+    /**
+     * Aplica o mesmo default de período (mês corrente quando nenhuma data é informada)
+     * já usado historicamente por esta tela, reutilizando a lógica pura de datas de
+     * FinanceRevenueRepository (nenhuma tabela legada é consultada por ela).
+     */
+    private function normalizedRange(array $filters): array
     {
-        $today = date('Y-m-d');
-        $items = [];
+        [$from, $to] = (new FinanceRevenueRepository())->effectiveRange(
+            (string) ($filters['from'] ?? ''),
+            (string) ($filters['to'] ?? '')
+        );
+        $filters['from'] = $from;
+        $filters['to'] = $to;
+        return $filters;
+    }
 
-        foreach ($rows as $r) {
-            if (!is_array($r)) {
-                continue;
-            }
-
-            $due = (string) ($r['due_date'] ?? '');
-            $st = (string) ($r['status'] ?? '');
-            $paidAt = (string) ($r['paid_at'] ?? '');
-            $open = (float) ($r['open_amount'] ?? 0);
-            $effective = $st;
-            if ($st === 'atrasado') {
-                $effective = 'vencida';
-            }
-            if (($st === 'pendente' || $st === 'reaberto') && $due !== '' && $due < $today) {
-                $effective = 'vencida';
-            }
-            if ($st === 'pago' && $paidAt !== '' && $due !== '' && substr($paidAt, 0, 10) < $due) {
-                $effective = 'adiantada';
-            }
-            $charges = InstallmentCharges::compute($open, $due, $today);
-
-            $items[] = [
-                'due_date' => $due !== '' ? date('d/m/Y', strtotime($due)) : '—',
-                'installment_no' => (int) ($r['installment_no'] ?? 0),
-                'project_title' => (string) ($r['project_title'] ?? ''),
-                'client_company' => trim((string) ($r['client_company'] ?? '')) !== '' ? trim((string) ($r['client_company'] ?? '')) : '—',
-                'status' => $effective,
-                'amount' => (float) ($r['amount'] ?? 0),
-                'paid_amount' => (float) ($r['paid_amount'] ?? 0),
-                'open_amount' => $open,
-                'penalty' => (float) ($charges['penalty'] ?? 0),
-                'interest' => (float) ($charges['interest'] ?? 0),
-                'total' => (float) ($charges['total'] ?? $open),
-            ];
+    /**
+     * Traduz os filtros desta tela (from/to/project_id/client_id/status/sort/direction)
+     * para o contrato esperado por FinancialReceivableRepository/FinancialReceiptRepository
+     * (due_from/due_to + status do enum enterprise), evitando duplicar a validação de
+     * filtros já implementada nesses repositórios.
+     */
+    private function toReceivableFilters(array $filters): array
+    {
+        $status = trim((string) ($filters['status'] ?? ''));
+        $allowed = ['pending', 'partially_paid', 'paid', 'overdue', 'canceled', 'renegotiated'];
+        if (!in_array($status, $allowed, true)) {
+            $status = '';
         }
 
-        return $items;
+        $sort = trim((string) ($filters['sort'] ?? 'due_date'));
+        $sortAllowed = ['due_date', 'client', 'project', 'amount', 'remaining', 'status', 'days_overdue', 'created_at'];
+        if (!in_array($sort, $sortAllowed, true)) {
+            $sort = 'due_date';
+        }
+
+        $direction = strtolower(trim((string) ($filters['direction'] ?? 'asc'))) === 'desc' ? 'desc' : 'asc';
+
+        return [
+            'client_id' => (int) ($filters['client_id'] ?? 0),
+            'project_id' => (int) ($filters['project_id'] ?? 0),
+            'status' => $status,
+            'due_from' => (string) ($filters['from'] ?? ''),
+            'due_to' => (string) ($filters['to'] ?? ''),
+            'sort' => $sort,
+            'direction' => $direction,
+        ];
+    }
+
+    /**
+     * Marca a origem de cada título (Ordem de Serviço, Proposta/Projeto, Contrato ou
+     * Manual) sem duplicar a leitura de servicos_avulsos em mais de um lugar.
+     */
+    private function withOrigin(FinancialReceivableRepository $repo, array $rows): array
+    {
+        $origins = $repo->originsForIds(array_column($rows, 'id'));
+        foreach ($rows as &$row) {
+            $id = (int) ($row['id'] ?? 0);
+            if (isset($origins[$id])) {
+                $row['origin'] = 'Ordem de serviço';
+            } elseif ((int) ($row['source_installment_id'] ?? 0) > 0) {
+                $row['origin'] = 'Proposta/Projeto';
+            } elseif ((int) ($row['contract_id'] ?? 0) > 0) {
+                $row['origin'] = 'Contrato';
+            } else {
+                $row['origin'] = 'Manual';
+            }
+        }
+        unset($row);
+        return $rows;
+    }
+
+    private function displayDate(string $date): string
+    {
+        return $date !== '' ? date('d/m/Y', strtotime($date)) : '—';
+    }
+
+    private function statusLabel(string $status): string
+    {
+        $map = [
+            'pending' => 'Pendente',
+            'partially_paid' => 'Parcialmente pago',
+            'paid' => 'Pago',
+            'overdue' => 'Vencido',
+            'canceled' => 'Cancelado',
+            'renegotiated' => 'Renegociado',
+        ];
+        return $map[$status] ?? $status;
     }
 
     private function sortLabel(array $filters): string
@@ -270,13 +330,13 @@ final class ReportController
         $direction = strtolower((string) ($filters['direction'] ?? 'asc')) === 'desc' ? 'decrescente' : 'crescente';
         $map = [
             'due_date' => 'vencimento',
-            'installment_no' => 'número da parcela',
-            'project' => 'projeto',
             'client' => 'cliente',
+            'project' => 'projeto',
             'status' => 'status',
-            'amount' => 'valor',
-            'paid_amount' => 'valor pago',
-            'open_amount' => 'saldo em aberto',
+            'amount' => 'valor original',
+            'remaining' => 'saldo em aberto',
+            'days_overdue' => 'dias em atraso',
+            'created_at' => 'criado em',
         ];
 
         return ($map[$sort] ?? 'vencimento') . ' (' . $direction . ')';
