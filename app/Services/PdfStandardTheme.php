@@ -21,6 +21,61 @@ final class PdfStandardTheme
     /** Cinza escuro (slate-900) para títulos e texto de destaque. */
     public const INK = [15, 23, 42];
 
+    /**
+     * Quebra o texto em linhas medidas pela largura real estimada (não por
+     * contagem de caracteres) e já calcula o word-spacing necessário para
+     * justificar cada linha — exceto a última do parágrafo, que fica alinhada
+     * à esquerda, seguindo a convenção tipográfica de texto justificado.
+     *
+     * A quebra por contagem de caracteres usada anteriormente gerava linhas
+     * bem mais curtas que a largura real disponível (a estimativa de largura
+     * de fonte não é linear com número de caracteres), o que fazia o gap a
+     * distribuir ultrapassar qualquer limite razoável de word-spacing e a
+     * justificação nunca era aplicada na prática — o texto sempre saía
+     * alinhado à esquerda apesar do código de justificação existir.
+     *
+     * @return array<int, array{text: string, wordSpacing: float}>
+     */
+    public static function wrapJustified(string $text, int $fontSize, int $maxWidth): array
+    {
+        $normalized = trim(preg_replace('/\s+/', ' ', $text) ?? '');
+        if ($normalized === '') {
+            return [];
+        }
+
+        $words = explode(' ', $normalized);
+        $lines = [];
+        $current = [];
+        foreach ($words as $word) {
+            $candidate = $current === [] ? [$word] : [...$current, $word];
+            $width = self::approxTextWidth(implode(' ', $candidate), $fontSize);
+            if ($width > $maxWidth && $current !== []) {
+                $lines[] = $current;
+                $current = [$word];
+                continue;
+            }
+            $current = $candidate;
+        }
+        if ($current !== []) {
+            $lines[] = $current;
+        }
+
+        $lastIndex = count($lines) - 1;
+        $result = [];
+        foreach ($lines as $i => $lineWords) {
+            $lineText = implode(' ', $lineWords);
+            $wordSpacing = 0.0;
+            if ($i !== $lastIndex && count($lineWords) > 1) {
+                $textWidth = self::approxTextWidth($lineText, $fontSize);
+                $gap = max(0.0, $maxWidth - $textWidth);
+                $wordSpacing = min(6.0, $gap / (count($lineWords) - 1));
+            }
+            $result[] = ['text' => $lineText, 'wordSpacing' => $wordSpacing];
+        }
+
+        return $result;
+    }
+
     public static function renderHeaderMinimal(
         ProfessionalPdf $pdf,
         array $branding,

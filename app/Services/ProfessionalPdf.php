@@ -263,10 +263,26 @@ final class ProfessionalPdf
         $w = imagesx($img);
         $h = imagesy($img);
 
+        // JPEG não tem canal alfa: compor sobre um fundo branco antes de
+        // codificar evita que áreas "transparentes" do PNG (ex.: logo)
+        // herdem a cor de preenchimento subjacente do canvas — que no
+        // caso dos logos gerados por LogoProcessor é preta — e apareçam
+        // como um bloco preto sólido no PDF final.
+        $flattened = imagecreatetruecolor($w, $h);
+        if ($flattened === false) {
+            $flattened = $img;
+        } else {
+            $white = imagecolorallocate($flattened, 255, 255, 255);
+            imagefilledrectangle($flattened, 0, 0, $w, $h, $white);
+            imagealphablending($flattened, true);
+            imagecopy($flattened, $img, 0, 0, 0, 0, $w, $h);
+            imagedestroy($img);
+        }
+
         ob_start();
-        imagejpeg($img, null, 92);
+        imagejpeg($flattened, null, 92);
         $jpeg = (string) ob_get_clean();
-        imagedestroy($img);
+        imagedestroy($flattened);
 
         if ($jpeg === '') {
             return null;

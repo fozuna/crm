@@ -216,7 +216,7 @@ final class ProposalPdfGenerator
 
         $y = PdfStandardTheme::sectionHeading($pdf, $this->x0, $this->x1, $y, $title, $this->textHeading, $this->accent);
 
-        $y = $this->renderTextSegments($pdf, $y, $segments, 74, 16, 8);
+        $y = $this->renderTextSegments($pdf, $y, $segments, 10, 16, 8);
         return $y - $this->sp(6);
     }
 
@@ -784,7 +784,7 @@ final class ProposalPdfGenerator
         ProfessionalPdf $pdf,
         int $y,
         array $segments,
-        int $maxLen,
+        int $fontSize,
         int $lineHeight,
         int $paragraphGap
     ): int {
@@ -796,27 +796,29 @@ final class ProposalPdfGenerator
             }
 
             $indent = $type === 'list' ? 12 : 0;
-            $localMaxLen = $type === 'paragraph' ? $maxLen : max(24, $maxLen - 4);
-            $lines = $this->wrapLine($text, $localMaxLen);
 
             if ($type === 'heading') {
                 $this->applyHeadingText($pdf);
-                $this->setFontScaled($pdf, 'F2', 10);
+                $this->setFontScaled($pdf, 'F2', $fontSize);
             } else {
                 $this->applyBodyText($pdf);
-                $this->setFontScaled($pdf, 'F1', 10);
+                $this->setFontScaled($pdf, 'F1', $fontSize);
             }
 
-            foreach ($lines as $index => $line) {
+            // Justifica parágrafos e itens de lista pela largura real da linha
+            // (não por contagem de caracteres); títulos internos (linhas em
+            // caixa alta) ficam alinhados à esquerda, como títulos de verdade.
+            if ($type === 'heading') {
                 $y = $this->ensureBlock($pdf, $y, $this->sp($lineHeight + 18));
-                $isJustifiedParagraph = $type === 'paragraph' && $index < (count($lines) - 1) && str_contains($line, ' ');
-                if ($isJustifiedParagraph) {
-                    $ws = $this->justifyWordSpacing($line, 10, $this->contentW - $indent);
-                    $pdf->text($this->x0 + $indent, $y, $line, $ws);
-                } else {
-                    $pdf->text($this->x0 + $indent, $y, $line);
-                }
+                $pdf->text($this->x0, $y, $text);
                 $y -= $this->sp($lineHeight);
+            } else {
+                $wrapped = PdfStandardTheme::wrapJustified($text, $this->scaleFont($fontSize), $this->contentW - $indent);
+                foreach ($wrapped as $line) {
+                    $y = $this->ensureBlock($pdf, $y, $this->sp($lineHeight + 18));
+                    $pdf->text($this->x0 + $indent, $y, $line['text'], $line['wordSpacing'] > 0.0 ? $line['wordSpacing'] : null);
+                    $y -= $this->sp($lineHeight);
+                }
             }
 
             $y -= $this->sp($type === 'heading' ? 4 : $paragraphGap);
@@ -856,21 +858,6 @@ final class ProposalPdfGenerator
             (int) round(255 - (255 - $rgb[1]) * $amount),
             (int) round(255 - (255 - $rgb[2]) * $amount),
         ];
-    }
-
-    private function justifyWordSpacing(string $line, int $fontSize, int $width): float
-    {
-        $spaces = substr_count($line, ' ');
-        if ($spaces <= 0) {
-            return 0.0;
-        }
-        $w = $this->approxTextWidth($line, $fontSize);
-        $extra = max(0.0, $width - $w);
-        $per = $extra / $spaces;
-        if ($per < 0.12 || $per > 1.15) {
-            return 0.0;
-        }
-        return $per;
     }
 
     private function approxTextWidth(string $text, int $fontSize): float

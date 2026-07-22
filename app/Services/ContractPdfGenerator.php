@@ -60,11 +60,11 @@ final class ContractPdfGenerator
             $this->accent,
             PdfStandardTheme::MUTED
         );
-        $y = $this->paragraph($pdf, $y, $body, 90, 12);
+        $y = $this->paragraph($pdf, $y, $body, 12);
         if (trim($footer) !== '') {
             $y -= 6;
             $y = PdfStandardTheme::sectionHeading($pdf, $this->margin, $x1, $y, 'Formalização', PdfStandardTheme::INK, $this->accent);
-            $y = $this->paragraph($pdf, $y, $footer, 90, 12);
+            $y = $this->paragraph($pdf, $y, $footer, 12);
         }
 
         PdfStandardTheme::appendCenteredFooterPaginationAndContact($pdf, $this->pageW, $this->contactLine, 20, [71, 85, 105], 10);
@@ -72,74 +72,52 @@ final class ContractPdfGenerator
         return $pdf->output();
     }
 
-    private function paragraph(ProfessionalPdf $pdf, int $y, string $text, int $maxChars, int $lineHeight): int
+    private function paragraph(ProfessionalPdf $pdf, int $y, string $text, int $lineHeight): int
     {
-        $pdf->setFont('F1', 10);
+        $fontSize = 10;
+        $contentW = $this->pageW - (2 * $this->margin);
+        $pdf->setFont('F1', $fontSize);
         $pdf->setFillColor(PdfStandardTheme::BODY[0], PdfStandardTheme::BODY[1], PdfStandardTheme::BODY[2]);
         $paragraphs = preg_split("/\R{2,}/", trim($text)) ?: [];
         foreach ($paragraphs as $paragraph) {
-            $paragraph = trim((string) $paragraph);
-            if ($paragraph === '') {
-                continue;
-            }
-
-            $lines = $this->wrap($paragraph, $maxChars);
-            foreach ($lines as $line) {
-                if ($y < 110) {
-                    $pdf->addPage();
-                    $y = PdfStandardTheme::renderHeaderMinimal(
-                        $pdf,
-                        $this->branding,
-                        $this->pageW,
-                        $this->pageH,
-                        $this->margin,
-                        56,
-                        6,
-                        36,
-                        200,
-                        32
-                    );
-                    $pdf->setFont('F1', 10);
-                    $pdf->setFillColor(30, 41, 59);
+            // Quebras de linha simples dentro de um parágrafo são tratadas como
+            // intencionais (ex.: cláusulas em linhas separadas) e preservadas;
+            // cada trecho é justificado pela largura real, exceto a última
+            // linha, que fica alinhada à esquerda — convenção tipográfica.
+            $chunks = preg_split("/\R/", trim((string) $paragraph)) ?: [];
+            foreach ($chunks as $chunk) {
+                $chunk = trim((string) $chunk);
+                if ($chunk === '') {
+                    continue;
                 }
-                $pdf->text($this->margin, $y, $line);
-                $y -= $lineHeight;
+
+                $wrapped = PdfStandardTheme::wrapJustified($chunk, $fontSize, $contentW);
+                foreach ($wrapped as $line) {
+                    if ($y < 110) {
+                        $pdf->addPage();
+                        $y = PdfStandardTheme::renderHeaderMinimal(
+                            $pdf,
+                            $this->branding,
+                            $this->pageW,
+                            $this->pageH,
+                            $this->margin,
+                            56,
+                            6,
+                            36,
+                            200,
+                            32
+                        );
+                        $pdf->setFont('F1', $fontSize);
+                        $pdf->setFillColor(PdfStandardTheme::BODY[0], PdfStandardTheme::BODY[1], PdfStandardTheme::BODY[2]);
+                    }
+                    $pdf->text($this->margin, $y, $line['text'], $line['wordSpacing'] > 0.0 ? $line['wordSpacing'] : null);
+                    $y -= $lineHeight;
+                }
             }
             $y -= 8;
         }
 
         return $y;
-    }
-
-    private function wrap(string $text, int $maxChars): array
-    {
-        $lines = [];
-        $parts = preg_split("/\R/", $text) ?: [];
-        foreach ($parts as $part) {
-            $part = trim((string) $part);
-            if ($part === '') {
-                $lines[] = '';
-                continue;
-            }
-            $words = preg_split('/\s+/', $part) ?: [];
-            $current = '';
-            foreach ($words as $word) {
-                $candidate = $current === '' ? $word : $current . ' ' . $word;
-                if (mb_strlen($candidate) <= $maxChars) {
-                    $current = $candidate;
-                    continue;
-                }
-                if ($current !== '') {
-                    $lines[] = $current;
-                }
-                $current = $word;
-            }
-            if ($current !== '') {
-                $lines[] = $current;
-            }
-        }
-
-        return $lines;
     }
 
     private function hexToRgb(string $hex): array
