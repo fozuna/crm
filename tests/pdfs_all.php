@@ -1,7 +1,9 @@
 <?php
 declare(strict_types=1);
 
-require __DIR__ . '/../app/bootstrap.php';
+if (!class_exists(\App\Core\Config::class, false)) {
+    require __DIR__ . '/../app/bootstrap.php';
+}
 
 use App\Services\ContractPdfGenerator;
 use App\Services\FinancialReceiptPdfGenerator;
@@ -181,13 +183,20 @@ $themeReflection = new ReflectionClass(PdfStandardTheme::class);
 $resolveLogo = $themeReflection->getMethod('resolveHeaderLogoPath');
 $resolveLogo->setAccessible(true);
 $selectedLogo = $resolveLogo->invoke(null, [
-    'logo_path' => $darkLogo,
+    'logo_path' => '',
     'logo_light_path' => $lightLogo,
     'logo_dark_path' => $darkLogo,
-], [41, 50, 65]);
-$assert($selectedLogo === $lightLogo, 'Tema PDF: fundo escuro utiliza logo clara automaticamente');
+]);
+$assert($selectedLogo === $darkLogo, 'Tema PDF: cabeçalho (sempre fundo claro) usa o logo escuro automaticamente');
+
+$fallbackLogo = $resolveLogo->invoke(null, [
+    'logo_path' => '',
+    'logo_light_path' => $lightLogo,
+    'logo_dark_path' => '',
+]);
+$assert($fallbackLogo === $lightLogo, 'Tema PDF: sem logo escuro cadastrado, cai para o logo claro disponível');
 
 @unlink($lightLogo);
 @unlink($darkLogo);
 
-exit($failures > 0 ? 1 : 0);
+return $failures;

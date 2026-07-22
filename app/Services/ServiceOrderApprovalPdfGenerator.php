@@ -12,18 +12,25 @@ final class ServiceOrderApprovalPdfGenerator
 
         $pageW = 595;
         $pageH = 842;
-        $margin = 42;
-        $cursorY = PdfStandardTheme::renderHeaderMinimal($pdf, $branding, $pageW, $pageH, $margin, 72, 5, 22, 120, 34);
-
-        $pdf->setFillColor(17, 24, 39);
-        $pdf->setFont('F2', 18);
-        $pdf->text($margin, $cursorY, 'Comprovante de Aprovação da OS');
-        $cursorY -= 24;
+        $margin = 48;
+        $x1 = $pageW - $margin;
+        $accent = $this->hexToRgb((string) ($branding['accent_color'] ?? '#ee6c4d'));
+        $cursorY = PdfStandardTheme::renderHeaderMinimal($pdf, $branding, $pageW, $pageH, $margin, 60, 5, 30, 140, 32);
 
         $status = (string) ($approval['status'] ?? 'pendente');
-        $pdf->setFont('F1', 11);
-        $pdf->text($margin, $cursorY, 'Status registrado: ' . $this->labelStatus($status));
-        $cursorY -= 18;
+        $cursorY = PdfStandardTheme::documentTitleBlock(
+            $pdf,
+            $margin,
+            $x1,
+            $cursorY,
+            'Ordem de serviço',
+            'Comprovante de Aprovação',
+            ['Status registrado: ' . $this->labelStatus($status)],
+            PdfStandardTheme::INK,
+            $accent,
+            PdfStandardTheme::MUTED,
+            18
+        );
 
         $blocks = [
             'Identificação da OS' => [
@@ -47,7 +54,7 @@ final class ServiceOrderApprovalPdfGenerator
         ];
 
         foreach ($blocks as $title => $lines) {
-            $cursorY = $this->renderBlock($pdf, $margin, $cursorY, $title, $lines);
+            $cursorY = $this->renderBlock($pdf, $margin, $x1, $accent, $cursorY, $title, $lines);
         }
 
         $description = [
@@ -60,11 +67,11 @@ final class ServiceOrderApprovalPdfGenerator
             'Observações técnicas',
             $this->plainText((string) ($serviceOrder['technical_notes'] ?? '')),
         ];
-        $cursorY = $this->renderBlock($pdf, $margin, $cursorY, 'Resumo técnico', $description);
+        $cursorY = $this->renderBlock($pdf, $margin, $x1, $accent, $cursorY, 'Resumo técnico', $description);
 
         $justification = trim((string) ($approval['justification'] ?? ''));
         if ($justification !== '') {
-            $cursorY = $this->renderBlock($pdf, $margin, $cursorY, 'Justificativa do cliente', [$justification]);
+            $cursorY = $this->renderBlock($pdf, $margin, $x1, $accent, $cursorY, 'Justificativa do cliente', [$justification]);
         }
 
         $contactLine = trim(implode(' • ', array_filter([
@@ -80,16 +87,17 @@ final class ServiceOrderApprovalPdfGenerator
         return $pdf->output();
     }
 
-    private function renderBlock(ProfessionalPdf $pdf, int $margin, int $cursorY, string $title, array $lines): int
+    private function renderBlock(ProfessionalPdf $pdf, int $margin, int $x1, array $accent, int $cursorY, string $title, array $lines): int
     {
-        $pdf->setFont('F2', 13);
-        $pdf->setFillColor(41, 50, 65);
-        $pdf->text($margin, $cursorY, $title);
-        $cursorY -= 16;
+        $cursorY = PdfStandardTheme::sectionHeading($pdf, $margin, $x1, $cursorY, $title, PdfStandardTheme::INK, $accent);
 
         $pdf->setFont('F1', 10);
-        $pdf->setFillColor(51, 65, 85);
+        $pdf->setFillColor(PdfStandardTheme::BODY[0], PdfStandardTheme::BODY[1], PdfStandardTheme::BODY[2]);
         foreach ($lines as $line) {
+            if (trim((string) $line) === '') {
+                $cursorY -= 8;
+                continue;
+            }
             $wrapped = $this->wrap((string) $line, 92);
             foreach ($wrapped as $row) {
                 $pdf->text($margin, $cursorY, $row);
@@ -148,6 +156,18 @@ final class ServiceOrderApprovalPdfGenerator
     private function formatMoney(float $value): string
     {
         return 'R$ ' . number_format($value, 2, ',', '.');
+    }
+
+    private function hexToRgb(string $hex): array
+    {
+        $hex = ltrim(trim($hex), '#');
+        if (strlen($hex) === 3) {
+            $hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+        }
+        if (strlen($hex) !== 6 || preg_match('/^[0-9a-fA-F]{6}$/', $hex) !== 1) {
+            return [238, 108, 77];
+        }
+        return [hexdec(substr($hex, 0, 2)), hexdec(substr($hex, 2, 2)), hexdec(substr($hex, 4, 2))];
     }
 
     private function formatDateTime(string $value): string

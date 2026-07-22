@@ -17,7 +17,6 @@ final class ProposalPdfGenerator
     private array $textHeading = [17, 24, 39];
     private array $divider = [107, 114, 128];
     private array $surface = [248, 250, 252];
-    private array $surfaceStrong = [241, 245, 249];
     private array $border = [203, 213, 225];
     private float $fontScale = 1.0;
 
@@ -61,20 +60,10 @@ final class ProposalPdfGenerator
 
         $y = $this->heroCard($pdf, $y, $proposal, $issueDate);
         $y = $this->initialDataBox($pdf, $y, (int) ($proposal['id'] ?? 0), (string) ($proposal['client_name'] ?? ''), $issueDate);
-
-        $y = $this->sectionSeparator($pdf, $y);
         $y = $this->fieldBlock($pdf, $y, 'Descrição do projeto', (string) ($proposal['description'] ?? ''));
-
-        $y = $this->sectionSeparator($pdf, $y);
         $y = $this->itemsTable($pdf, $y, $items);
-
-        $y = $this->sectionSeparator($pdf, $y);
         $y = $this->financialSummary($pdf, $y, $proposal, $paymentOptions, $selectedIndex);
-
-        $y = $this->sectionSeparator($pdf, $y);
         $y = $this->deliveryBlock($pdf, $y, $proposal, $milestones);
-
-        $y = $this->sectionSeparator($pdf, $y);
         $y = $this->termsBlock($pdf, $y, (string) ($proposal['terms'] ?? ''), (string) ($proposal['notes'] ?? ''));
 
         $this->footerBlock($pdf, $y, $issueDate);
@@ -147,31 +136,20 @@ final class ProposalPdfGenerator
 
     private function heroCard(ProfessionalPdf $pdf, int $y, array $proposal, string $issueDate): int
     {
-        $y = $this->ensureBlock($pdf, $y, $this->sp(150));
-        $boxH = $this->sp(104);
-        $top = $y;
-        $rightBoxW = 156;
-        $rightX = $this->x1 - $rightBoxW;
-        $subtitleLines = $this->wrapLine('Documento comercial padronizado para apresentação, negociação e aprovação da solução proposta.', 54);
+        $y = $this->ensureBlock($pdf, $y, $this->sp(120));
 
-        $pdf->setFillColor($this->primary[0], $this->primary[1], $this->primary[2]);
-        $pdf->rect($this->x0, $top - $boxH, $this->contentW, $boxH, 'F');
-        $pdf->setFillColor(255, 255, 255);
-        $this->setFontScaled($pdf, 'F2', 18);
-        $pdf->text($this->x0 + 18, $top - 28, 'Proposta Comercial');
-        $this->setFontScaled($pdf, 'F1', 11);
-        foreach (array_slice($subtitleLines, 0, 2) as $idx => $line) {
-            $pdf->text($this->x0 + 18, $top - 48 - ($idx * 13), $line);
-        }
-
-        $pdf->setStrokeColor(255, 255, 255);
-        $pdf->rect($rightX, $top - 78, $rightBoxW, 54, 'S');
-        $this->setFontScaled($pdf, 'F2', 11);
-        $pdf->text($rightX + 12, $top - 42, 'Proposta #' . (int) ($proposal['id'] ?? 0));
-        $this->setFontScaled($pdf, 'F1', 10);
-        $pdf->text($rightX + 12, $top - 58, 'Data: ' . $issueDate);
-
-        return $top - $boxH - 14;
+        return PdfStandardTheme::documentTitleBlock(
+            $pdf,
+            $this->x0,
+            $this->x1,
+            $y,
+            'Documento comercial',
+            'Proposta Comercial',
+            ['Proposta #' . (int) ($proposal['id'] ?? 0) . ' · Emitida em ' . $issueDate],
+            $this->textHeading,
+            $this->accent,
+            PdfStandardTheme::MUTED
+        );
     }
 
     private function initialDataBox(ProfessionalPdf $pdf, int $y, int $proposalId, string $clientName, string $issueDate): int
@@ -195,14 +173,15 @@ final class ProposalPdfGenerator
 
         $pdf->setFillColor($this->surface[0], $this->surface[1], $this->surface[2]);
         $pdf->setStrokeColor($this->border[0], $this->border[1], $this->border[2]);
-        $pdf->setLineWidth(0.6);
+        $pdf->setLineWidth(0.75);
         $pdf->rect($this->x0, $yBoxBottom, $this->contentW, $boxH, 'DF');
-        $pdf->setStrokeColor($this->border[0], $this->border[1], $this->border[2]);
-        $pdf->line($this->x0 + 16, $yTop - 28, $this->x1 - 16, $yTop - 28);
 
-        $pdf->setFillColor($this->primary[0], $this->primary[1], $this->primary[2]);
+        $pdf->setFillColor($this->textHeading[0], $this->textHeading[1], $this->textHeading[2]);
         $this->setFontScaled($pdf, 'F2', 12);
         $pdf->text($this->x0 + 16, $yTop - 18, 'Identificação');
+        $pdf->setStrokeColor($this->accent[0], $this->accent[1], $this->accent[2]);
+        $pdf->setLineWidth(1.25);
+        $pdf->line($this->x0 + 16, $yTop - 24, $this->x1 - 16, $yTop - 24);
 
         $x = $this->x0 + 16;
         $xVal = $x + $labelW;
@@ -230,25 +209,12 @@ final class ProposalPdfGenerator
         return $yBoxBottom - $this->sp(14);
     }
 
-    private function sectionSeparator(ProfessionalPdf $pdf, int $y): int
-    {
-        $y -= $this->sp(4);
-        $y = $this->ensureBlock($pdf, $y, $this->sp(22));
-        $this->applyDividerStroke($pdf);
-        $pdf->setLineWidth(0.6);
-        $pdf->line($this->x0, $y, $this->x1, $y);
-        return $y - $this->sp(12);
-    }
-
     private function fieldBlock(ProfessionalPdf $pdf, int $y, string $title, string $body): int
     {
         $segments = $this->buildTextSegments($body);
         $y = $this->ensureBlock($pdf, $y, $this->sp(92));
 
-        $this->applyHeadingText($pdf);
-        $this->setFontScaled($pdf, 'F2', 12);
-        $pdf->text($this->x0, $y, $title);
-        $y -= $this->sp(16);
+        $y = PdfStandardTheme::sectionHeading($pdf, $this->x0, $this->x1, $y, $title, $this->textHeading, $this->accent);
 
         $y = $this->renderTextSegments($pdf, $y, $segments, 74, 16, 8);
         return $y - $this->sp(6);
@@ -262,27 +228,18 @@ final class ProposalPdfGenerator
     private function itemsTable(ProfessionalPdf $pdf, int $y, array $items): int
     {
         $y = $this->ensureBlock($pdf, $y, $this->sp(120));
-        $this->applyHeadingText($pdf);
-        $this->setFontScaled($pdf, 'F2', 12);
-        $pdf->text($this->x0, $y, 'Serviços');
-        $y -= $this->sp(18);
+        $y = PdfStandardTheme::sectionHeading($pdf, $this->x0, $this->x1, $y, 'Serviços', $this->textHeading, $this->accent);
 
         $descW = 258;
         $qtyW = 44;
         $unitW = 72;
         $totalW = $this->contentW - $descW - $qtyW - $unitW;
+        $colWidths = [$descW, $qtyW, $unitW, $totalW];
+        $colLabels = ['Descrição', 'Qtd', 'Valor', 'Total'];
+        $colRightAlign = [false, false, true, true];
 
-        $drawHeader = function (int $headerTop) use ($pdf, $descW, $qtyW, $unitW, $totalW): int {
-            $pdf->setFillColor($this->surfaceStrong[0], $this->surfaceStrong[1], $this->surfaceStrong[2]);
-            $pdf->setStrokeColor($this->border[0], $this->border[1], $this->border[2]);
-            $pdf->rect($this->x0, $headerTop - 26, $this->contentW, 26, 'DF');
-            $this->applyHeadingText($pdf);
-            $this->setFontScaled($pdf, 'F2', 10);
-            $pdf->text($this->x0 + 8, $headerTop - 17, 'Descrição');
-            $pdf->text($this->x0 + $descW + 8, $headerTop - 17, 'Qtd');
-            $pdf->text($this->x0 + $descW + $qtyW + 8, $headerTop - 17, 'Valor');
-            $pdf->text($this->x0 + $descW + $qtyW + $unitW + 8, $headerTop - 17, 'Total');
-            return $headerTop - 26;
+        $drawHeader = function (int $headerTop) use ($pdf, $colWidths, $colLabels, $colRightAlign): int {
+            return PdfStandardTheme::tableHeaderRow($pdf, $this->x0, $headerTop, 24, $colWidths, $colLabels, $this->primary, $colRightAlign);
         };
 
         $currentY = $drawHeader($y);
@@ -311,10 +268,7 @@ final class ProposalPdfGenerator
                 $pdf->addPage();
                 $this->renderHeader($pdf);
                 $currentY = $this->yTop;
-                $this->applyHeadingText($pdf);
-                $this->setFontScaled($pdf, 'F2', 12);
-                $pdf->text($this->x0, $currentY, 'Serviços (continuação)');
-                $currentY -= $this->sp(18);
+                $currentY = PdfStandardTheme::sectionHeading($pdf, $this->x0, $this->x1, $currentY, 'Serviços (continuação)', $this->textHeading, $this->accent);
                 $currentY = $drawHeader($currentY);
             }
 
@@ -349,10 +303,7 @@ final class ProposalPdfGenerator
     private function financialSummary(ProfessionalPdf $pdf, int $y, array $proposal, array $paymentOptions, int $selectedIndex): int
     {
         $y = $this->ensureBlock($pdf, $y, $this->sp(120));
-        $this->applyHeadingText($pdf);
-        $this->setFontScaled($pdf, 'F2', 12);
-        $pdf->text($this->x0, $y, 'Resumo financeiro');
-        $y -= $this->sp(18);
+        $y = PdfStandardTheme::sectionHeading($pdf, $this->x0, $this->x1, $y, 'Resumo financeiro', $this->textHeading, $this->accent);
         $this->applyBodyText($pdf);
         $this->setFontScaled($pdf, 'F1', 10);
 
@@ -431,10 +382,7 @@ final class ProposalPdfGenerator
     private function deliveryBlock(ProfessionalPdf $pdf, int $y, array $proposal, array $milestones): int
     {
         $y = $this->ensureBlock($pdf, $y, $this->sp(110));
-        $this->applyHeadingText($pdf);
-        $this->setFontScaled($pdf, 'F2', 12);
-        $pdf->text($this->x0, $y, 'Prazos de entrega');
-        $y -= $this->sp(18);
+        $y = PdfStandardTheme::sectionHeading($pdf, $this->x0, $this->x1, $y, 'Prazos de entrega', $this->textHeading, $this->accent);
         $this->applyBodyText($pdf);
         $this->setFontScaled($pdf, 'F1', 10);
 

@@ -16,7 +16,6 @@ final class ServiceOrderPdfGenerator
     private array $primary = [41, 50, 65];
     private array $accent = [238, 108, 77];
     private array $surface = [248, 250, 252];
-    private array $surfaceStrong = [241, 245, 249];
     private array $border = [203, 213, 225];
     private array $text = [26, 26, 26];
     private array $muted = [71, 85, 105];
@@ -93,36 +92,21 @@ final class ServiceOrderPdfGenerator
 
     private function titleCard(ProfessionalPdf $pdf, int $y, array $serviceOrder): int
     {
-        $y = $this->ensureSpace($pdf, $y, 144);
-        $boxH = 104;
-        $top = $y;
-        $rightBoxW = 170;
-        $rightX = $this->margin + $this->contentW - $rightBoxW - 18;
-        $availableChars = max(20, (int) floor(($this->contentW - $rightBoxW - 78) / 5.7));
-        $subtitleLines = $this->wrapText(
-            'Documento técnico-operacional para acompanhamento, execução e faturamento do serviço.',
-            $availableChars
+        $y = $this->ensureSpace($pdf, $y, 130);
+        $x1 = $this->margin + $this->contentW;
+
+        return PdfStandardTheme::documentTitleBlock(
+            $pdf,
+            $this->margin,
+            $x1,
+            $y,
+            'Documento técnico-operacional',
+            'Ordem de Serviço ' . (string) ($serviceOrder['numero_os'] ?? '—'),
+            ['Status: ' . ServiceOrderStatus::label((string) ($serviceOrder['status'] ?? ''))],
+            $this->primary,
+            $this->accent,
+            PdfStandardTheme::MUTED
         );
-
-        $pdf->setFillColor($this->primary[0], $this->primary[1], $this->primary[2]);
-        $pdf->rect($this->margin, $top - $boxH, $this->contentW, $boxH, 'F');
-        $pdf->setFillColor(255, 255, 255);
-        $pdf->setFont('F2', 18);
-        $pdf->text($this->margin + 18, $top - 28, 'Ordem de Serviço');
-        $pdf->setFont('F1', 11);
-        foreach (array_slice($subtitleLines, 0, 3) as $idx => $line) {
-            $pdf->text($this->margin + 18, $top - 48 - ($idx * 13), $line);
-        }
-
-        $pdf->setFillColor(255, 255, 255);
-        $pdf->setStrokeColor(255, 255, 255);
-        $pdf->rect($rightX, $top - 74, $rightBoxW, 50, 'S');
-        $pdf->setFont('F2', 11);
-        $pdf->text($rightX + 12, $top - 42, 'OS: ' . (string) ($serviceOrder['numero_os'] ?? '—'));
-        $pdf->setFont('F1', 10);
-        $pdf->text($rightX + 12, $top - 58, 'Status: ' . ServiceOrderStatus::label((string) ($serviceOrder['status'] ?? '')));
-
-        return $top - $boxH - 18;
     }
 
     private function overviewTable(ProfessionalPdf $pdf, int $y, array $serviceOrder): int
@@ -168,12 +152,14 @@ final class ServiceOrderPdfGenerator
 
         $pdf->setFillColor($this->surface[0], $this->surface[1], $this->surface[2]);
         $pdf->setStrokeColor($this->border[0], $this->border[1], $this->border[2]);
+        $pdf->setLineWidth(0.75);
         $pdf->rect($this->margin, $top - $height, $this->contentW, $height, 'DF');
 
         $pdf->setFillColor($this->primary[0], $this->primary[1], $this->primary[2]);
         $pdf->setFont('F2', 12);
         $pdf->text($this->margin + 16, $top - 22, $title);
-        $pdf->setStrokeColor($this->border[0], $this->border[1], $this->border[2]);
+        $pdf->setStrokeColor($this->accent[0], $this->accent[1], $this->accent[2]);
+        $pdf->setLineWidth(1.25);
         $pdf->line($this->margin + 16, $top - 30, $this->margin + $this->contentW - 16, $top - 30);
 
         $pdf->setFillColor($this->text[0], $this->text[1], $this->text[2]);
@@ -198,24 +184,13 @@ final class ServiceOrderPdfGenerator
     ): int {
         $rightAlign = is_array($rightAlign) ? $rightAlign : array_fill(0, count($headers), false);
         $y = $this->ensureSpace($pdf, $y, 110);
-        $this->sectionHeading($pdf, $y, $title);
-        $y -= 22;
+        $y = $this->sectionHeading($pdf, $y, $title);
 
         $tableTop = $y;
         $headerH = 24;
-        $x = $this->margin;
 
-        $pdf->setFillColor($this->surfaceStrong[0], $this->surfaceStrong[1], $this->surfaceStrong[2]);
-        $pdf->setStrokeColor($this->border[0], $this->border[1], $this->border[2]);
-        $pdf->rect($this->margin, $tableTop - $headerH, $this->contentW, $headerH, 'DF');
-        $pdf->setFillColor($this->primary[0], $this->primary[1], $this->primary[2]);
-        $pdf->setFont('F2', 10);
-        foreach ($headers as $index => $header) {
-            $pdf->text($x + 8, $tableTop - 16, (string) $header);
-            $x += (int) ($widths[$index] ?? 0);
-        }
-
-        $currentY = $tableTop - $headerH;
+        $tableTop = PdfStandardTheme::tableHeaderRow($pdf, $this->margin, $tableTop, $headerH, $widths, $headers, $this->primary, $rightAlign);
+        $currentY = $tableTop;
         $rowIndex = 0;
         if (count($rows) === 0) {
             $rows = [['Nenhum registro disponível', '', '', '']];
@@ -235,20 +210,8 @@ final class ServiceOrderPdfGenerator
             if (($currentY - $rowH) < ($this->yBottom + 44)) {
                 $pdf->addPage();
                 $currentY = $this->renderHeader($pdf);
-                $this->sectionHeading($pdf, $currentY, $title . ' (continuação)');
-                $currentY -= 22;
-                $tableTop = $currentY;
-                $x = $this->margin;
-                $pdf->setFillColor($this->surfaceStrong[0], $this->surfaceStrong[1], $this->surfaceStrong[2]);
-                $pdf->setStrokeColor($this->border[0], $this->border[1], $this->border[2]);
-                $pdf->rect($this->margin, $tableTop - $headerH, $this->contentW, $headerH, 'DF');
-                $pdf->setFillColor($this->primary[0], $this->primary[1], $this->primary[2]);
-                $pdf->setFont('F2', 10);
-                foreach ($headers as $index => $header) {
-                    $pdf->text($x + 8, $tableTop - 16, (string) $header);
-                    $x += (int) ($widths[$index] ?? 0);
-                }
-                $currentY = $tableTop - $headerH;
+                $currentY = $this->sectionHeading($pdf, $currentY, $title . ' (continuação)');
+                $currentY = PdfStandardTheme::tableHeaderRow($pdf, $this->margin, $currentY, $headerH, $widths, $headers, $this->primary, $rightAlign);
             }
 
             $fill = ($rowIndex % 2 === 0) ? [255, 255, 255] : $this->surface;
@@ -302,11 +265,9 @@ final class ServiceOrderPdfGenerator
         $pdf->text($rightStart + 18, $lineY - 16, $responsavel);
     }
 
-    private function sectionHeading(ProfessionalPdf $pdf, int $y, string $title): void
+    private function sectionHeading(ProfessionalPdf $pdf, int $y, string $title): int
     {
-        $pdf->setFillColor($this->primary[0], $this->primary[1], $this->primary[2]);
-        $pdf->setFont('F2', 12);
-        $pdf->text($this->margin, $y, $title);
+        return PdfStandardTheme::sectionHeading($pdf, $this->margin, $this->margin + $this->contentW, $y, $title, $this->primary, $this->accent);
     }
 
     private function ensureSpace(ProfessionalPdf $pdf, int $y, int $needed): int

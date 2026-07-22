@@ -81,29 +81,24 @@ final class FinancialReceiptPdfGenerator
 
     private function renderTitleBlock(ProfessionalPdf $pdf, int $y, array $receivable, array $receipt): int
     {
-        $top = $y;
-        $blockH = 94;
-        $rightBoxW = 150;
-        $rightX = $this->contentX + $this->contentW - $rightBoxW - 18;
+        $x1 = $this->contentX + $this->contentW;
+        $meta = [
+            'Recibo #' . (int) ($receipt['id'] ?? 0) . ' · Conta #' . (int) ($receivable['id'] ?? 0),
+            'Data do pagamento: ' . $this->formatDate((string) ($receipt['payment_date'] ?? '')),
+        ];
 
-        $pdf->setFillColor($this->primary[0], $this->primary[1], $this->primary[2]);
-        $pdf->rect($this->contentX, $top - $blockH, $this->contentW, $blockH, 'F');
-
-        $pdf->setFillColor(255, 255, 255);
-        $pdf->setFont('F2', 18);
-        $pdf->text($this->contentX + 18, $top - 28, 'Recibo de Pagamento');
-        $pdf->setFont('F1', 11);
-        $pdf->text($this->contentX + 18, $top - 46, 'Documento financeiro emitido para comprovação formal do recebimento.');
-
-        $pdf->setStrokeColor(255, 255, 255);
-        $pdf->rect($rightX, $top - 72, $rightBoxW, 50, 'S');
-        $pdf->setFont('F2', 11);
-        $pdf->text($rightX + 12, $top - 42, 'Recibo #' . (int) ($receipt['id'] ?? 0));
-        $pdf->setFont('F1', 10);
-        $pdf->text($rightX + 12, $top - 58, 'Conta #' . (int) ($receivable['id'] ?? 0));
-        $pdf->text($rightX + 12, $top - 72 + 12, 'Data: ' . $this->formatDate((string) ($receipt['payment_date'] ?? '')));
-
-        return $top - $blockH - 16;
+        return PdfStandardTheme::documentTitleBlock(
+            $pdf,
+            $this->contentX,
+            $x1,
+            $y,
+            'Documento financeiro',
+            'Recibo de Pagamento',
+            $meta,
+            PdfStandardTheme::INK,
+            $this->accent,
+            PdfStandardTheme::MUTED
+        );
     }
 
     private function renderClientService(ProfessionalPdf $pdf, int $y, array $receivable): int
@@ -187,12 +182,16 @@ final class FinancialReceiptPdfGenerator
         $pdf->setStrokeColor($this->border[0], $this->border[1], $this->border[2]);
         $pdf->rect($this->contentX, $y - $boxH, $this->contentW, $boxH, 'DF');
 
-        $pdf->setFillColor($this->primary[0], $this->primary[1], $this->primary[2]);
+        $pdf->setFillColor(PdfStandardTheme::INK[0], PdfStandardTheme::INK[1], PdfStandardTheme::INK[2]);
         $pdf->setFont('F2', 12);
         $pdf->text($this->contentX + 18, $y - 24, 'Detalhes do pagamento');
+        $pdf->setStrokeColor($this->accent[0], $this->accent[1], $this->accent[2]);
+        $pdf->setLineWidth(1.25);
+        $pdf->line($this->contentX + 18, $y - 30, $this->contentX + $this->contentW - 18, $y - 30);
 
         $pdf->setStrokeColor($this->border[0], $this->border[1], $this->border[2]);
-        $pdf->line($this->contentX + (int) floor($this->contentW / 2), $y - 104, $this->contentX + (int) floor($this->contentW / 2), $y - 34);
+        $pdf->setLineWidth(0.75);
+        $pdf->line($this->contentX + (int) floor($this->contentW / 2), $y - 100, $this->contentX + (int) floor($this->contentW / 2), $y - 34);
 
         $this->drawKeyValues($pdf, $this->contentX + 18, $y - 46, $left);
         $this->drawKeyValues($pdf, $this->contentX + 268, $y - 46, $right);
@@ -222,9 +221,12 @@ final class FinancialReceiptPdfGenerator
         $pdf->setStrokeColor($this->border[0], $this->border[1], $this->border[2]);
         $pdf->rect($this->contentX, $y - $boxH, $this->contentW, $boxH, 'DF');
 
-        $pdf->setFillColor($this->primary[0], $this->primary[1], $this->primary[2]);
+        $pdf->setFillColor(PdfStandardTheme::INK[0], PdfStandardTheme::INK[1], PdfStandardTheme::INK[2]);
         $pdf->setFont('F2', 12);
         $pdf->text($this->contentX + 18, $y - 24, 'Declaração de recebimento');
+        $pdf->setStrokeColor($this->accent[0], $this->accent[1], $this->accent[2]);
+        $pdf->setLineWidth(1.25);
+        $pdf->line($this->contentX + 18, $y - 30, $this->contentX + $this->contentW - 18, $y - 30);
 
         $pdf->setFillColor($this->body[0], $this->body[1], $this->body[2]);
         $pdf->setFont('F1', 11);

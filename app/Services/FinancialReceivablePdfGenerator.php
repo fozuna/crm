@@ -60,17 +60,9 @@ final class FinancialReceivablePdfGenerator
 
         $y = $this->heroCard($pdf, $y, $receivable);
         $y = $this->receivableDataBox($pdf, $y, $receivable);
-
-        $y = $this->sectionSeparator($pdf, $y);
         $y = $this->clientBlock($pdf, $y, $receivable);
-
-        $y = $this->sectionSeparator($pdf, $y);
         $y = $this->itemsTable($pdf, $y, $receivable);
-
-        $y = $this->sectionSeparator($pdf, $y);
         $y = $this->totalsBlock($pdf, $y, $receivable);
-
-        $y = $this->sectionSeparator($pdf, $y);
         $y = $this->paymentBlock($pdf, $y, $receivable);
 
         $this->footerBlock($pdf, $y);
@@ -105,36 +97,27 @@ final class FinancialReceivablePdfGenerator
 
     private function heroCard(ProfessionalPdf $pdf, int $y, array $receivable): int
     {
-        $y = $this->ensureBlock($pdf, $y, 180);
-        $boxH = 92;
-        $top = $y;
-        $rightBoxW = 150;
-        $rightX = $this->x1 - $rightBoxW;
+        $y = $this->ensureBlock($pdf, $y, 140);
         $status = trim((string) ($receivable['status'] ?? ''));
         $due = $this->formatDate((string) ($receivable['due_date'] ?? ''));
-        $subtitleLines = $this->wrapPreserveNewlines('Documento financeiro padronizado para cobrança, conferência e acompanhamento do recebimento.', 52);
 
-        $pdf->setFillColor($this->primary[0], $this->primary[1], $this->primary[2]);
-        $pdf->rect($this->x0, $top - $boxH, $this->contentW, $boxH, 'F');
-        $pdf->setFillColor(255, 255, 255);
-        $pdf->setFont('F2', 18);
-        $pdf->text($this->x0 + 18, $top - 28, 'Conta a Receber');
-        $pdf->setFont('F1', 11);
-        foreach (array_slice($subtitleLines, 0, 2) as $idx => $line) {
-            $pdf->text($this->x0 + 18, $top - 48 - ($idx * 13), $line);
-        }
-
-        $pdf->setStrokeColor(255, 255, 255);
-        $pdf->rect($rightX, $top - 72, $rightBoxW, 50, 'S');
-        $pdf->setFont('F2', 11);
-        $pdf->text($rightX + 12, $top - 42, 'Título #' . (int) ($receivable['id'] ?? 0));
-        $pdf->setFont('F1', 10);
-        $pdf->text($rightX + 12, $top - 58, 'Venc.: ' . ($due !== '' ? $due : '—'));
+        $meta = ['Título #' . (int) ($receivable['id'] ?? 0) . ' · Vencimento: ' . ($due !== '' ? $due : '—')];
         if ($status !== '') {
-            $pdf->text($rightX + 12, $top - 72 + 12, 'Status: ' . $status);
+            $meta[] = 'Status: ' . $status;
         }
 
-        return $top - $boxH - 18;
+        return PdfStandardTheme::documentTitleBlock(
+            $pdf,
+            $this->x0,
+            $this->x1,
+            $y,
+            'Documento financeiro',
+            'Conta a Receber',
+            $meta,
+            $this->textHeading,
+            $this->accent,
+            PdfStandardTheme::MUTED
+        );
     }
 
     private function receivableDataBox(ProfessionalPdf $pdf, int $y, array $receivable): int
@@ -167,11 +150,9 @@ final class FinancialReceivablePdfGenerator
         $yBoxBottom = $yTop - $boxH;
 
         $this->applyDividerStroke($pdf);
-        $pdf->setLineWidth(0.6);
+        $pdf->setLineWidth(0.75);
         $pdf->line($this->x0, $yTop, $this->x1, $yTop);
-        $pdf->line($this->x0, $yTop - 2, $this->x1, $yTop - 2);
         $pdf->line($this->x0, $yBoxBottom, $this->x1, $yBoxBottom);
-        $pdf->line($this->x0, $yBoxBottom + 2, $this->x1, $yBoxBottom + 2);
 
         $x = $this->x0 + 12;
         $xVal = $x + $labelW;
@@ -241,10 +222,7 @@ final class FinancialReceivablePdfGenerator
         $needed = 160 + (count($pairs) * 18);
         $y = $this->ensureBlock($pdf, $y, $needed);
 
-        $this->applyHeadingText($pdf);
-        $pdf->setFont('F2', 12);
-        $pdf->text($this->x0, $y, 'Dados do cliente');
-        $y -= 18;
+        $y = PdfStandardTheme::sectionHeading($pdf, $this->x0, $this->x1, $y, 'Dados do cliente', $this->textHeading, $this->accent);
 
         $this->applyBodyText($pdf);
         $pdf->setFont('F1', 11);
@@ -284,13 +262,9 @@ final class FinancialReceivablePdfGenerator
 
         $y = $this->ensureBlock($pdf, $y, 220);
 
-        $this->applyHeadingText($pdf);
-        $pdf->setFont('F2', 12);
-        $pdf->text($this->x0, $y, 'Serviços / Itens');
-        $y -= 18;
+        $y = PdfStandardTheme::sectionHeading($pdf, $this->x0, $this->x1, $y, 'Serviços / Itens', $this->textHeading, $this->accent);
 
-        $tableTop = $y;
-        $rowH = 22;
+        $rowH = 24;
         $colDesc = (int) floor($this->contentW * 0.58);
         $colQty = (int) floor($this->contentW * 0.10);
         $colUnit = (int) floor($this->contentW * 0.16);
@@ -301,31 +275,36 @@ final class FinancialReceivablePdfGenerator
         $xUnit = $xQty + $colQty;
         $xTot = $xUnit + $colUnit;
 
+        $tableTop = PdfStandardTheme::tableHeaderRow(
+            $pdf,
+            $this->x0,
+            $y,
+            $rowH,
+            [$colDesc, $colQty, $colUnit, $colTot],
+            ['Descrição', 'Qtd', 'Unit.', 'Total'],
+            $this->primary,
+            [false, false, true, true]
+        );
+
         $this->applyDividerStroke($pdf);
         $pdf->setLineWidth(0.6);
         $pdf->line($this->x0, $tableTop, $this->x1, $tableTop);
         $pdf->line($this->x0, $tableTop - $rowH, $this->x1, $tableTop - $rowH);
-        $pdf->line($this->x0, $tableTop - ($rowH * 2), $this->x1, $tableTop - ($rowH * 2));
-        $pdf->line($xQty, $tableTop, $xQty, $tableTop - ($rowH * 2));
-        $pdf->line($xUnit, $tableTop, $xUnit, $tableTop - ($rowH * 2));
-        $pdf->line($xTot, $tableTop, $xTot, $tableTop - ($rowH * 2));
-
-        $this->applyHeadingText($pdf);
-        $pdf->setFont('F2', 11);
-        $pdf->text($xDesc + 6, $tableTop - 15, 'Descricao');
-        $pdf->text($xQty + 6, $tableTop - 15, 'Qtd');
-        $pdf->text($xUnit + 6, $tableTop - 15, 'Unit');
-        $pdf->text($xTot + 6, $tableTop - 15, 'Total');
+        $pdf->setFillColor(255, 255, 255);
+        $pdf->rect($this->x0, $tableTop - $rowH, $this->contentW, $rowH, 'F');
+        $pdf->line($xQty, $tableTop, $xQty, $tableTop - $rowH);
+        $pdf->line($xUnit, $tableTop, $xUnit, $tableTop - $rowH);
+        $pdf->line($xTot, $tableTop, $xTot, $tableTop - $rowH);
 
         $this->applyBodyText($pdf);
         $pdf->setFont('F1', 10);
         $descLines = $this->wrapPreserveNewlines($fullDesc !== '' ? $fullDesc : '—', 56);
-        $pdf->text($xDesc + 6, $tableTop - $rowH - 15, $descLines[0] ?? '—');
-        $pdf->text($xQty + 6, $tableTop - $rowH - 15, (string) $qty);
-        $pdf->text($xUnit + 6, $tableTop - $rowH - 15, $this->brl($unit));
-        $pdf->text($xTot + 6, $tableTop - $rowH - 15, $this->brl($total));
+        $pdf->text($xDesc + 6, $tableTop - 16, $descLines[0] ?? '—');
+        $pdf->text($xQty + 6, $tableTop - 16, (string) $qty);
+        $this->rightAlignedTextLocal($pdf, $xTot - 6, $tableTop - 16, $this->brl($unit), 10);
+        $this->rightAlignedTextLocal($pdf, $this->x1 - 6, $tableTop - 16, $this->brl($total), 10);
 
-        $y = $tableTop - ($rowH * 2) - 18;
+        $y = $tableTop - $rowH - 18;
         $this->applyBodyText($pdf);
         $pdf->setFont('F1', 10);
         for ($i = 1; $i < count($descLines) && $i < 8; $i++) {
@@ -335,6 +314,14 @@ final class FinancialReceivablePdfGenerator
         }
 
         return $y - 8;
+    }
+
+    private function rightAlignedTextLocal(ProfessionalPdf $pdf, int $rightX, int $y, string $text, int $fontSize): void
+    {
+        $len = mb_strlen($text);
+        $approx = (int) ceil($len * 0.52 * $fontSize);
+        $x = max($this->x0, $rightX - $approx);
+        $pdf->text($x, $y, $text);
     }
 
     private function totalsBlock(ProfessionalPdf $pdf, int $y, array $receivable): int
@@ -359,10 +346,7 @@ final class FinancialReceivablePdfGenerator
 
         $y = $this->ensureBlock($pdf, $y, 210);
 
-        $this->applyHeadingText($pdf);
-        $pdf->setFont('F2', 12);
-        $pdf->text($this->x0, $y, 'Resumo financeiro');
-        $y -= 18;
+        $y = PdfStandardTheme::sectionHeading($pdf, $this->x0, $this->x1, $y, 'Resumo financeiro', $this->textHeading, $this->accent);
 
         $boxW = (int) floor($this->contentW * 0.58);
         $x = $this->x1 - $boxW;
@@ -370,7 +354,7 @@ final class FinancialReceivablePdfGenerator
         $boxH = 16 + (count($pairs) * $rowH) + 10;
 
         $this->applyDividerStroke($pdf);
-        $pdf->setLineWidth(0.6);
+        $pdf->setLineWidth(0.75);
         $pdf->rect($x, $y - $boxH, $boxW, $boxH, 'S');
 
         $curY = $y - 16;
@@ -428,10 +412,7 @@ final class FinancialReceivablePdfGenerator
         $needed = 200 + (count($pairs) * 18);
         $y = $this->ensureBlock($pdf, $y, $needed);
 
-        $this->applyHeadingText($pdf);
-        $pdf->setFont('F2', 12);
-        $pdf->text($this->x0, $y, 'Instrucoes para pagamento');
-        $y -= 18;
+        $y = PdfStandardTheme::sectionHeading($pdf, $this->x0, $this->x1, $y, 'Instruções para pagamento', $this->textHeading, $this->accent);
 
         foreach ($pairs as [$k, $v]) {
             $y = $this->ensureBlock($pdf, $y, 70);
@@ -474,15 +455,6 @@ final class FinancialReceivablePdfGenerator
         $pdf->text($this->x1 - 220, $footerY - 16, $this->company);
     }
 
-    private function sectionSeparator(ProfessionalPdf $pdf, int $y): int
-    {
-        $y -= 6;
-        $y = $this->ensureBlock($pdf, $y, 40);
-        $this->applyDividerStroke($pdf);
-        $pdf->setLineWidth(0.6);
-        $pdf->line($this->x0, $y, $this->x1, $y);
-        return $y - 18;
-    }
 
     private function kvLine(ProfessionalPdf $pdf, int $x, int $xVal, int $y, string $label, string $value): int
     {

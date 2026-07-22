@@ -5,6 +5,22 @@ namespace App\Services;
 
 final class PdfStandardTheme
 {
+    /**
+     * Paleta neutra compartilhada por todos os geradores de PDF, para que título,
+     * texto e linhas divisórias tenham sempre o mesmo tom em qualquer documento
+     * do sistema — em vez de cada gerador definir seu próprio cinza.
+     */
+    /** Cinza neutro claro (slate-200) usado em fios finos e bordas discretas. */
+    public const HAIRLINE = [226, 232, 240];
+    /** Cinza claro (slate-100) usado em fundos de zebra-striping de tabelas. */
+    public const SURFACE = [248, 250, 252];
+    /** Cinza médio (slate-500) para texto discreto (legendas, rodapé, metadados). */
+    public const MUTED = [100, 116, 139];
+    /** Cinza de leitura (slate-700) para o corpo de texto. */
+    public const BODY = [51, 65, 85];
+    /** Cinza escuro (slate-900) para títulos e texto de destaque. */
+    public const INK = [15, 23, 42];
+
     public static function renderHeaderMinimal(
         ProfessionalPdf $pdf,
         array $branding,
@@ -17,46 +33,167 @@ final class PdfStandardTheme
         int $logoMaxW,
         int $logoMaxH
     ): int {
-        $primary = self::hexToRgb((string) ($branding['primary_color'] ?? '#293241'));
         $accent = self::hexToRgb((string) ($branding['accent_color'] ?? '#ee6c4d'));
-        $logoPath = self::resolveHeaderLogoPath($branding, $primary);
+        $logoPath = self::resolveHeaderLogoPath($branding);
         $cnpj = self::formatCnpj((string) ($branding['company_cnpj'] ?? ''));
-
-        $pdf->setFillColor($primary[0], $primary[1], $primary[2]);
-        $pdf->rect(0, $pageH - $headerH, $pageW, $headerH, 'F');
-        if ($accentH > 0) {
-            $pdf->setFillColor($accent[0], $accent[1], $accent[2]);
-            $pdf->rect(0, $pageH - $headerH - $accentH, $pageW, $accentH, 'F');
-        }
-
-        $text = self::bestTextOn($primary);
-        $pdf->setFillColor($text[0], $text[1], $text[2]);
-        $pdf->setFont('F2', 12);
 
         $x0 = $margin;
         $x1 = $pageW - $margin;
+        $bandBottom = $pageH - $headerH;
+
+        // Cabeçalho "clean": sem bloco de cor sólida — apenas um fio fino no rodapé
+        // do cabeçalho e, opcionalmente, um traço discreto na cor de destaque logo
+        // abaixo, no lugar da antiga barra colorida de página inteira.
+        $pdf->setStrokeColor(self::HAIRLINE[0], self::HAIRLINE[1], self::HAIRLINE[2]);
+        $pdf->setLineWidth(0.75);
+        $pdf->line($x0, $bandBottom, $x1, $bandBottom);
+
+        if ($accentH > 0) {
+            $pdf->setStrokeColor($accent[0], $accent[1], $accent[2]);
+            $pdf->setLineWidth(1.5);
+            $pdf->line($x0, $bandBottom - 3, $x1, $bandBottom - 3);
+        }
 
         if ($logoPath !== '' && is_file($logoPath)) {
             [$lw, $lh] = self::fitLogoBox($logoPath, $logoMaxW, $logoMaxH);
             if ($lw > 0 && $lh > 0) {
-                $ly = ($pageH - $headerH) + (int) floor(($headerH - $lh) / 2);
+                $ly = $bandBottom + (int) floor(($headerH - $lh) / 2);
                 $pdf->imageFromFile($x0, $ly, $lw, $lh, $logoPath);
             }
         }
 
         if ($cnpj !== '') {
-            $fontSize = 11;
-            $pdf->setFont('F2', $fontSize);
+            $fontSize = 9;
+            $pdf->setFillColor(self::MUTED[0], self::MUTED[1], self::MUTED[2]);
+            $pdf->setFont('F1', $fontSize);
             $w = self::approxTextWidth(self::toPdfEncoding($cnpj), $fontSize);
             $x = (int) floor($x1 - $w);
             if ($x < $x0) {
                 $x = $x0;
             }
-            $y = ($pageH - $headerH) + (int) floor(($headerH - $fontSize) / 2) + 1;
+            $y = $bandBottom + (int) floor(($headerH - $fontSize) / 2) + 1;
             $pdf->text($x, $y, $cnpj);
         }
 
-        return ($pageH - $headerH) - $gapBelowHeader;
+        return $bandBottom - $gapBelowHeader;
+    }
+
+    /**
+     * Título de documento no padrão "clean" (rótulo em caixa alta na cor de
+     * destaque, título em negrito, fio de destaque e linha(s) de metadados) —
+     * substitui o antigo bloco sólido colorido usado como cabeçalho de página.
+     */
+    public static function documentTitleBlock(
+        ProfessionalPdf $pdf,
+        int $x0,
+        int $x1,
+        int $y,
+        string $eyebrow,
+        string $title,
+        array $metaLines,
+        array $headingRgb,
+        array $accentRgb,
+        array $mutedRgb,
+        int $titleSize = 20
+    ): int {
+        if (trim($eyebrow) !== '') {
+            $pdf->setFillColor($accentRgb[0], $accentRgb[1], $accentRgb[2]);
+            $pdf->setFont('F2', 9);
+            $pdf->text($x0, $y, mb_strtoupper($eyebrow));
+            $y -= 20;
+        }
+
+        $pdf->setFillColor($headingRgb[0], $headingRgb[1], $headingRgb[2]);
+        $pdf->setFont('F2', $titleSize);
+        $pdf->text($x0, $y, $title);
+        $y -= 11;
+
+        $pdf->setStrokeColor($accentRgb[0], $accentRgb[1], $accentRgb[2]);
+        $pdf->setLineWidth(1.75);
+        $pdf->line($x0, $y, $x1, $y);
+        $y -= 19;
+
+        $pdf->setFillColor($mutedRgb[0], $mutedRgb[1], $mutedRgb[2]);
+        $pdf->setFont('F1', 10);
+        foreach ($metaLines as $line) {
+            $line = trim((string) $line);
+            if ($line === '') {
+                continue;
+            }
+            $pdf->text($x0, $y, $line);
+            $y -= 14;
+        }
+
+        return $y - 6;
+    }
+
+    /**
+     * Título de seção no padrão "clean": rótulo em negrito seguido de um fio na
+     * cor de destaque logo abaixo — substitui o padrão anterior de texto solto
+     * com uma linha cinza separando o conteúdo seguinte.
+     */
+    public static function sectionHeading(
+        ProfessionalPdf $pdf,
+        int $x0,
+        int $x1,
+        int $y,
+        string $title,
+        array $headingRgb,
+        array $accentRgb,
+        int $fontSize = 13
+    ): int {
+        $pdf->setFillColor($headingRgb[0], $headingRgb[1], $headingRgb[2]);
+        $pdf->setFont('F2', $fontSize);
+        $pdf->text($x0, $y, $title);
+
+        $ruleY = $y - 7;
+        $pdf->setStrokeColor($accentRgb[0], $accentRgb[1], $accentRgb[2]);
+        $pdf->setLineWidth(1.5);
+        $pdf->line($x0, $ruleY, $x1, $ruleY);
+
+        return $ruleY - 17;
+    }
+
+    /**
+     * Linha de cabeçalho de tabela preenchida com a cor primária e texto branco
+     * em negrito — substitui os cabeçalhos de tabela em cinza claro com borda.
+     *
+     * @param array<int,int> $colWidths
+     * @param array<int,string> $labels
+     * @param array<int,bool>|null $rightAlign
+     */
+    public static function tableHeaderRow(
+        ProfessionalPdf $pdf,
+        int $x0,
+        int $y,
+        int $rowH,
+        array $colWidths,
+        array $labels,
+        array $primaryRgb,
+        ?array $rightAlign = null
+    ): int {
+        $totalW = (int) array_sum($colWidths);
+        $pdf->setFillColor($primaryRgb[0], $primaryRgb[1], $primaryRgb[2]);
+        $pdf->rect($x0, $y - $rowH, $totalW, $rowH, 'F');
+
+        $pdf->setFillColor(255, 255, 255);
+        $pdf->setFont('F2', 10);
+        $textY = $y - (int) floor(($rowH + 7) / 2);
+        $cx = $x0;
+        foreach ($labels as $i => $label) {
+            $w = (int) ($colWidths[$i] ?? 0);
+            $align = is_array($rightAlign) && (bool) ($rightAlign[$i] ?? false);
+            $encoded = self::toPdfEncoding((string) $label);
+            if ($align) {
+                $tw = self::approxTextWidth($encoded, 10);
+                $pdf->text((int) max($cx + 8, $cx + $w - $tw - 8), $textY, (string) $label);
+            } else {
+                $pdf->text($cx + 8, $textY, (string) $label);
+            }
+            $cx += $w;
+        }
+
+        return $y - $rowH;
     }
 
     public static function appendCenteredFooterPaginationAndContact(
@@ -122,12 +259,6 @@ final class PdfStandardTheme
         return ($len * 0.52 * $fontSize) + ($spaces * 0.28 * $fontSize);
     }
 
-    private static function bestTextOn(array $bg): array
-    {
-        $y = (0.2126 * $bg[0]) + (0.7152 * $bg[1]) + (0.0722 * $bg[2]);
-        return $y < 140 ? [255, 255, 255] : [17, 24, 39];
-    }
-
     private static function formatCnpj(string $cnpj): string
     {
         $digits = preg_replace('/\D+/', '', $cnpj);
@@ -156,17 +287,16 @@ final class PdfStandardTheme
         return [(int) floor($srcW * $scale), (int) floor($srcH * $scale)];
     }
 
-    private static function resolveHeaderLogoPath(array $branding, array $primary): string
+    private static function resolveHeaderLogoPath(array $branding): string
     {
         $logoPath = trim((string) ($branding['logo_path'] ?? ''));
         $logoLight = trim((string) ($branding['logo_light_path'] ?? ''));
         $logoDark = trim((string) ($branding['logo_dark_path'] ?? ''));
 
-        $backgroundIsDark = self::bestTextOn($primary) === [255, 255, 255];
-        if ($backgroundIsDark && $logoLight !== '' && is_file($logoLight)) {
-            return $logoLight;
-        }
-        if (!$backgroundIsDark && $logoDark !== '' && is_file($logoDark)) {
+        // O cabeçalho do PDF é sempre fundo claro/branco (sem bloco de cor sólida) —
+        // a variante correta é o "logo escuro" (logo_dark_path, pensado em /empresa
+        // para uso sobre fundo claro), com fallback para as demais variantes.
+        if ($logoDark !== '' && is_file($logoDark)) {
             return $logoDark;
         }
         if ($logoPath !== '' && is_file($logoPath)) {
@@ -174,9 +304,6 @@ final class PdfStandardTheme
         }
         if ($logoLight !== '' && is_file($logoLight)) {
             return $logoLight;
-        }
-        if ($logoDark !== '' && is_file($logoDark)) {
-            return $logoDark;
         }
         return '';
     }

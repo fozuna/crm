@@ -105,4 +105,7 @@ $failures += (int) $productionErrorFailures;
 $landingLoginFailures = require __DIR__ . '/landing_login_page.php';
 $failures += (int) $landingLoginFailures;
 
+$pdfsAllFailures = require __DIR__ . '/pdfs_all.php';
+$failures += (int) $pdfsAllFailures;
+
 exit($failures > 0 ? 1 : 0);
