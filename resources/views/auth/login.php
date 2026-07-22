@@ -6,7 +6,7 @@ use App\Services\CompanyProfileService;
 
 $branding = [
     'company_name' => 'TRAXTER CRM',
-    'brand_tagline' => 'Gestão empresarial moderna para operações comerciais, financeiras e operacionais.',
+    'brand_tagline' => 'Sistema de gestão comercial, operacional e financeira.',
     'primary_color' => '#293241',
     'accent_color' => '#ee6c4d',
     'meta_title' => 'TRAXTER CRM',
@@ -26,7 +26,7 @@ try {
 $companyName = trim((string) ($branding['company_name'] ?? 'TRAXTER CRM'));
 $tagline = trim((string) ($branding['brand_tagline'] ?? ''));
 if ($tagline === '') {
-    $tagline = 'Gestão comercial, financeira e operacional em um software SaaS premium.';
+    $tagline = 'Sistema de gestão comercial, operacional e financeira.';
 }
 
 $canonicalUrl = rtrim((string) Config::get('APP_URL', ''), '/');
@@ -36,9 +36,9 @@ if ($canonicalUrl === '') {
     $canonicalUrl .= '/login';
 }
 
-$pageTitle = $companyName . ' | Gestão inteligente para grandes resultados';
-$pageDescription = 'TRAXTER CRM centraliza clientes, propostas, projetos, financeiro, contratos e ordens de serviço em uma experiência SaaS moderna, segura e profissional.';
-$pageKeywords = 'CRM, SaaS, gestão comercial, financeiro, propostas, projetos, contratos, ordem de serviço';
+$pageTitle = $companyName . ' | Acesso ao sistema';
+$pageDescription = 'TRAXTER CRM centraliza clientes, propostas, contratos, projetos, financeiro e ordens de serviço em um único sistema, com controle de acesso por papel e auditoria.';
+$pageKeywords = 'CRM, gestão comercial, financeiro, propostas, projetos, contratos, ordem de serviço';
 $pageCanonical = $canonicalUrl;
 $pageOgType = 'website';
 $pageSchemaJsonLd = [
@@ -60,32 +60,104 @@ if ($logoPath !== '' && is_file($logoPath)) {
     }
 }
 
-$featureCards = [
-    ['icon' => 'users', 'title' => 'Gestão de Clientes', 'description' => 'Centralize cadastro, relacionamento, histórico e funil comercial em um único lugar.'],
-    ['icon' => 'briefcase', 'title' => 'Propostas Comerciais', 'description' => 'Crie propostas profissionais, acompanhe aprovações e formalize oportunidades com agilidade.'],
-    ['icon' => 'folder', 'title' => 'Projetos', 'description' => 'Organize entregas, etapas, responsáveis e acompanhamento operacional do início ao fim.'],
-    ['icon' => 'wallet', 'title' => 'Financeiro', 'description' => 'Controle recebíveis, pagamentos, fluxo de caixa e indicadores com rastreabilidade.'],
-    ['icon' => 'chart', 'title' => 'Dashboard', 'description' => 'Visualize indicadores essenciais com leitura rápida e foco na tomada de decisão.'],
-    ['icon' => 'list', 'title' => 'Agenda', 'description' => 'Monitore compromissos, prazos e atividades com uma rotina mais previsível.'],
-    ['icon' => 'book-open', 'title' => 'Ordem de Serviço', 'description' => 'Registre demandas pontuais, histórico técnico, anexos e cobranças vinculadas.'],
-    ['icon' => 'shield', 'title' => 'Contratos', 'description' => 'Formalize acordos, acompanhe versões e preserve o padrão institucional da operação.'],
+// Módulos reais do sistema (config/routes.php + resources/views/layout.php) — nenhum item
+// fictício ou fora do que o produto de fato oferece.
+$modules = [
+    ['icon' => 'users', 'title' => 'Clientes', 'description' => 'Cadastro, relacionamento e histórico de interações centralizados.'],
+    ['icon' => 'briefcase', 'title' => 'Propostas', 'description' => 'Criação, aprovação e acompanhamento até a conversão em contrato.'],
+    ['icon' => 'pdf', 'title' => 'Contratos', 'description' => 'Geração a partir da proposta, com versões e notificações.'],
+    ['icon' => 'folder', 'title' => 'Projetos', 'description' => 'Tarefas, marcos, eventos e histórico de status de execução.'],
+    ['icon' => 'wallet', 'title' => 'Financeiro', 'description' => 'Recebíveis, pagamentos, fluxo de caixa e indicadores.'],
+    ['icon' => 'list', 'title' => 'Ordens de Serviço', 'description' => 'Abertura, anexos, histórico técnico e aprovação externa por link.'],
+    ['icon' => 'shield', 'title' => 'Auditoria', 'description' => 'Rastreabilidade de ações críticas por usuário e por módulo.'],
+    ['icon' => 'chart', 'title' => 'Relatórios', 'description' => 'Leitura consolidada dos indicadores operacionais e financeiros.'],
 ];
 
-$benefits = [
-    'Organização completa de clientes, funil, propostas e execução.',
-    'Controle financeiro integrado com mais previsibilidade.',
-    'Centralização de documentos, contratos e históricos.',
-    'Acompanhamento de tarefas e prazos sem dispersão.',
-    'Automatização de processos que reduzem retrabalho.',
-    'Experiência premium com foco em produtividade e clareza.',
+// Framing do problema com base no que o CLAUDE.md documenta como motivação real do produto
+// ("reduz dispersão operacional entre planilhas, documentos avulsos e controles paralelos").
+$problemPoints = [
+    [
+        'title' => 'Dados espalhados entre planilhas e documentos avulsos',
+        'description' => 'Cliente, proposta, contrato e ordem de serviço — cada um num arquivo diferente, sem um histórico único para consultar.',
+    ],
+    [
+        'title' => 'Controles paralelos sem rastreabilidade',
+        'description' => 'Decisões, aprovações e alterações se perdem fora do sistema, sem registro de quem fez o quê e quando.',
+    ],
+    [
+        'title' => 'Financeiro fora do fluxo operacional',
+        'description' => 'Recebíveis e pagamentos controlados à parte dificultam enxergar o caixa real da operação.',
+    ],
 ];
 
-$productivityItems = [
-    'Economize tempo com fluxos mais organizados.',
-    'Organize seus clientes e oportunidades com clareza.',
-    'Nunca perca um prazo importante.',
-    'Controle financeiro integrado sem planilhas paralelas.',
-    'Gestão completa em um único ambiente.',
+// Ciclo real de uma ordem de serviço (database/schema.sql: aberto → em_andamento → concluido → faturado)
+// e o que cada etapa efetivamente faz no código (ServiceOrderService, ServiceOrderApprovalController).
+$lifecycleStages = [
+    [
+        'num' => '01 · ABERTO',
+        'title' => 'Registre a demanda',
+        'description' => 'A ordem de serviço nasce vinculada ao cliente e, quando existir, ao contrato correspondente.',
+    ],
+    [
+        'num' => '02 · EM ANDAMENTO',
+        'title' => 'Execute e acompanhe',
+        'description' => 'Status, anexos e histórico técnico atualizados conforme o atendimento avança.',
+    ],
+    [
+        'num' => '03 · CONCLUÍDO',
+        'title' => 'Feche com o cliente',
+        'description' => 'A aprovação pode acontecer externamente, por link assinado — sem exigir login do cliente.',
+    ],
+    [
+        'num' => '04 · FATURADO',
+        'title' => 'Siga para o financeiro',
+        'description' => 'O lançamento em contas a receber é sincronizado automaticamente com a ordem de serviço.',
+    ],
+];
+
+// Afirmações técnicas verificáveis no código (RBAC por middleware, auditoria em tabelas dedicadas,
+// aprovação externa por token), não adjetivos de marketing.
+$operationPoints = [
+    [
+        'title' => 'Um papel, um nível de acesso.',
+        'description' => 'Permissões por papel (admin, PM, financeiro, auditor) aplicadas por middleware — não por checagem isolada em cada tela.',
+    ],
+    [
+        'title' => 'Nada se perde no caminho.',
+        'description' => 'Operações críticas registram histórico e auditoria em tabelas dedicadas, com rastreabilidade ponta a ponta.',
+    ],
+    [
+        'title' => 'Aprovação sem fricção.',
+        'description' => 'Ordens de serviço podem ser aprovadas externamente por link assinado, sem exigir login do cliente.',
+    ],
+];
+
+// Respostas restritas ao que é verificável em código/documentação — sem promessas comerciais
+// (planos, cancelamento, importação em lote) que não existem no produto atual.
+$faqItems = [
+    [
+        'q' => 'Preciso instalar alguma coisa?',
+        'a' => 'Não. O sistema roda inteiramente no navegador, renderizado no servidor — sem aplicativo para baixar ou instalar na máquina do usuário.',
+    ],
+    [
+        'q' => 'Como funciona o acesso de cada pessoa da equipe?',
+        'a' => 'O administrador cria os usuários e define o papel de cada um (admin, PM, financeiro ou auditor). O que cada pessoa vê e pode fazer é controlado por esse papel, não configurado tela a tela.',
+    ],
+    [
+        'q' => 'Como o sistema protege os dados?',
+        'a' => 'Senhas são armazenadas com hash, toda mutação exige verificação CSRF e ações críticas ficam registradas em auditoria — com consultas ao banco sempre por prepared statements.',
+    ],
+    [
+        'q' => 'O cliente final precisa de login para aprovar uma ordem de serviço?',
+        'a' => 'Não. A aprovação externa acontece por um link assinado, específico daquela ordem de serviço, sem exigir conta no sistema.',
+    ],
+];
+
+$navItems = [
+    ['href' => '#solucao', 'label' => 'Solução'],
+    ['href' => '#modulos', 'label' => 'Módulos'],
+    ['href' => '#como-funciona', 'label' => 'Como funciona'],
+    ['href' => '#faq', 'label' => 'Dúvidas'],
 ];
 
 $errorMessage = trim((string) ($error ?? ''));
@@ -95,479 +167,450 @@ $openModal = $errorMessage !== '';
 <html lang="pt-br">
 <head>
 <?php require __DIR__ . '/../partials/head.php'; ?>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800;900&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
-  .landing-grid{
-    background-image:
-      linear-gradient(rgba(41,50,65,.07) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(41,50,65,.07) 1px, transparent 1px);
-    background-size: 28px 28px;
+  :root{
+    --tr-ease: cubic-bezier(.16,1,.3,1);
+    --tr-font-display: 'Archivo', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --tr-font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --tr-graphite: color-mix(in srgb, var(--tr-primary) 92%, black);
+    --tr-graphite-2: color-mix(in srgb, var(--tr-primary) 82%, white 6%);
+    --tr-graphite-3: color-mix(in srgb, var(--tr-primary) 74%, white 10%);
+    --tr-line: color-mix(in srgb, var(--tr-primary) 55%, white 24%);
+    --tr-line-light: #DAD5C8;
+    --tr-paper: #F6F4EF;
+    --tr-text-dim: #9CA5B4;
+    --tr-text-dim-2: #64748B;
   }
-  .landing-glow{
-    background:
-      radial-gradient(circle at top left, rgba(238,108,77,.18), transparent 34%),
-      radial-gradient(circle at bottom right, rgba(41,50,65,.18), transparent 38%);
+  html{scroll-behavior:smooth}
+  body{
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", var(--tr-font), Roboto, "Helvetica Neue", Arial, sans-serif;
+    background:var(--tr-graphite);
+    color:#E9EBEF;
   }
-  .landing-shell{
-    background: linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(248,250,252,.96) 100%);
+  .tr-display{font-family:var(--tr-font-display); letter-spacing:-0.02em;}
+  .tr-mono{font-family:var(--tr-font-mono);}
+
+  .skip-link{
+    position:absolute; left:1rem; top:-3rem; z-index:70;
+    background:#0f172a; color:#fff; padding:.6rem 1rem; border-radius:.5rem;
+    font-size:.875rem; font-weight:600; transition:top .18s var(--tr-ease);
   }
-  .mock-chart-bar{border-radius:9999px 9999px .5rem .5rem;background:linear-gradient(180deg, rgba(238,108,77,.95), rgba(238,108,77,.45));}
-  .mock-line{position:relative;height:96px}
-  .mock-line svg{position:absolute;inset:0;width:100%;height:100%}
-  .modal-overlay{transition:opacity .24s ease}
-  .modal-panel{transition:transform .24s ease, opacity .24s ease}
-  .modal-hidden{pointer-events:none}
-  .modal-hidden .modal-overlay{opacity:0}
-  .modal-hidden .modal-panel{opacity:0;transform:translateY(16px) scale(.96)}
-  .menu-hidden{display:none}
-  .site-header{z-index:40}
+  .skip-link:focus{top:1rem}
+
+  .section-pad{padding:5.5rem 1.5rem}
+  @media(max-width:768px){.section-pad{padding:3.5rem 1.25rem}}
+  .wrap{max-width:72rem; margin:0 auto}
+  .paper{background:var(--tr-paper); color:#14151A}
+
+  .eyebrow{
+    font-family:var(--tr-font-mono); font-size:.75rem; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--tr-accent); display:inline-flex; align-items:center; gap:.5rem;
+  }
+  .eyebrow::before{content:''; width:1rem; height:1px; background:var(--tr-accent)}
+  .eyebrow--dark{color:color-mix(in srgb, var(--tr-accent) 85%, black 15%)}
+
+  .btn-tr-primary{
+    background:var(--tr-accent); color:#14151A; font-weight:700;
+    padding:.85rem 1.75rem; border-radius:.5rem; display:inline-flex; align-items:center; gap:.5rem;
+    transition:transform .15s var(--tr-ease), box-shadow .15s var(--tr-ease), filter .15s var(--tr-ease);
+  }
+  .btn-tr-primary:hover{filter:brightness(1.06); transform:translateY(-1px); box-shadow:0 8px 24px -8px color-mix(in srgb, var(--tr-accent) 60%, transparent)}
+  .btn-tr-ghost{
+    border:1px solid var(--tr-line); color:#E9EBEF; padding:.8rem 1.6rem; border-radius:.5rem; font-weight:600;
+    transition:border-color .15s var(--tr-ease), background .15s var(--tr-ease);
+  }
+  .btn-tr-ghost:hover{border-color:color-mix(in srgb, var(--tr-line) 60%, white 20%); background:rgba(255,255,255,.03)}
+  .btn-tr-dark{
+    background:#14151A; color:var(--tr-paper); font-weight:700;
+    padding:.85rem 1.75rem; border-radius:.5rem; display:inline-flex; align-items:center; gap:.5rem;
+    transition:opacity .15s var(--tr-ease), transform .15s var(--tr-ease);
+  }
+  .btn-tr-dark:hover{opacity:.85; transform:translateY(-1px)}
+
+  .glow-hero{
+    background: radial-gradient(60% 50% at 78% 15%, color-mix(in srgb, var(--tr-accent) 16%, transparent), transparent 70%);
+  }
+
+  .reveal{opacity:0; transform:translateY(16px); transition:opacity .6s var(--tr-ease), transform .6s var(--tr-ease)}
+  .reveal.is-visible{opacity:1; transform:translateY(0)}
+  .reveal-delay-1.is-visible{transition-delay:.06s}
+  .reveal-delay-2.is-visible{transition-delay:.12s}
+  .reveal-delay-3.is-visible{transition-delay:.18s}
+
+  @keyframes heroIn{from{opacity:0; transform:translateY(16px)} to{opacity:1; transform:translateY(0)}}
+  .hero-in{animation:heroIn .7s var(--tr-ease) both}
+  .hero-in-1{animation-delay:.05s}
+  .hero-in-2{animation-delay:.14s}
+  .hero-in-3{animation-delay:.22s}
+  .hero-in-4{animation-delay:.3s}
+
+  @media (prefers-reduced-motion: reduce){
+    html{scroll-behavior:auto}
+    .reveal, .hero-in{opacity:1 !important; transform:none !important; animation:none !important; transition:none !important}
+  }
+
+  /* Cartão de OS: ilustra o ciclo real (aberto → em_andamento → concluido → faturado),
+     não uma métrica ou cliente real — sinalizado abaixo do cartão. */
+  .os-card{
+    background:var(--tr-graphite-2); border:1px solid var(--tr-line); border-radius:.9rem;
+    overflow:hidden; box-shadow:0 40px 80px -30px rgba(0,0,0,.6);
+  }
+  .os-head{
+    padding:1.15rem 1.35rem; border-bottom:1px solid var(--tr-line);
+    display:flex; align-items:center; justify-content:space-between; gap:.75rem;
+  }
+  .os-status-track{display:flex; align-items:center; padding:1.35rem; gap:0}
+  .os-step{display:flex; flex-direction:column; align-items:flex-start; flex:1; position:relative}
+  .os-dot{width:.7rem; height:.7rem; border-radius:9999px; background:var(--tr-line); border:2px solid var(--tr-line); margin-bottom:.6rem; z-index:2}
+  .os-step.done .os-dot{background:var(--tr-accent); border-color:var(--tr-accent)}
+  .os-step.active .os-dot{background:var(--tr-graphite-2); border-color:var(--tr-accent); box-shadow:0 0 0 4px color-mix(in srgb, var(--tr-accent) 22%, transparent)}
+  .os-connector{position:absolute; top:.3rem; left:1rem; right:-50%; height:2px; background:var(--tr-line); z-index:1}
+  .os-step.done .os-connector{background:var(--tr-accent)}
+  .os-label{font-size:.72rem; color:var(--tr-text-dim); font-weight:600}
+  .os-step.done .os-label, .os-step.active .os-label{color:#E9EBEF}
+  .os-body{padding:0 1.35rem 1.35rem}
+  .os-row{display:flex; justify-content:space-between; gap:1rem; padding:.7rem 0; border-bottom:1px solid var(--tr-line); font-size:.85rem}
+  .os-row:last-child{border-bottom:none}
+  .os-row span:first-child{color:var(--tr-text-dim)}
+  .tag-mono{font-family:var(--tr-font-mono); font-size:.72rem; color:var(--tr-text-dim)}
+
+  .feature-card{
+    background:var(--tr-graphite-2); border:1px solid var(--tr-line); border-radius:.75rem; padding:1.5rem;
+    transition:border-color .2s var(--tr-ease), transform .2s var(--tr-ease);
+  }
+  .feature-card:hover{border-color:color-mix(in srgb, var(--tr-accent) 55%, var(--tr-line)); transform:translateY(-3px)}
+  .feature-num{font-family:var(--tr-font-mono); font-size:.72rem; color:var(--tr-accent); margin-bottom:.9rem; display:block}
+
+  .stage{border-top:2px solid var(--tr-line-light); padding-top:1.1rem}
+  .stage-num{font-family:var(--tr-font-mono); font-size:.78rem; color:color-mix(in srgb, var(--tr-accent) 80%, black 15%); font-weight:600}
+
+  .faq-item{border-bottom:1px solid var(--tr-line-light)}
+  .faq-q{
+    width:100%; text-align:left; padding:1.3rem 0; display:flex; justify-content:space-between; align-items:center; gap:1rem;
+    font-weight:600; font-size:.95rem; color:#14151A; cursor:pointer; background:none; border:none; font-family:'Inter',sans-serif;
+  }
+  .faq-icon{transition:transform .25s var(--tr-ease); flex-shrink:0}
+  .faq-item.open .faq-icon{transform:rotate(45deg)}
+  .faq-a{max-height:0; overflow:hidden; transition:max-height .3s var(--tr-ease)}
+  .faq-item.open .faq-a{max-height:220px}
+  .faq-a-inner{padding-bottom:1.3rem; color:var(--tr-text-dim-2); font-size:.88rem; line-height:1.65; max-width:40rem}
+
+  .mockup-caption{font-family:var(--tr-font-mono); font-size:.7rem; color:var(--tr-text-dim); text-align:center; margin-top:.75rem}
+
+  ::selection{background:var(--tr-accent); color:#14151A}
+
+  .site-header{z-index:40; background:color-mix(in srgb, var(--tr-graphite) 92%, transparent); backdrop-filter:blur(8px)}
   .site-header__menu{display:none}
   .site-header__menu.is-open{display:block}
-  .site-header__logo{max-height:2.25rem;width:auto;object-fit:contain}
-  @media (min-width: 768px){
-    .site-header__menu{display:none !important}
-  }
+  .site-header__logo{max-height:2rem; width:auto; object-fit:contain}
+  @media (min-width: 768px){ .site-header__menu{display:none !important} }
+  .brand-dot{width:.5rem; height:.5rem; border-radius:9999px; background:var(--tr-accent)}
+
+  .modal-overlay{transition:opacity .22s var(--tr-ease)}
+  .modal-panel{transition:transform .22s var(--tr-ease), opacity .22s var(--tr-ease)}
+  .modal-hidden{pointer-events:none}
+  .modal-hidden .modal-overlay{opacity:0}
+  .modal-hidden .modal-panel{opacity:0; transform:translateY(12px) scale(.98)}
+
+  .pw-toggle{display:inline-flex; align-items:center; justify-content:center; width:2.25rem; height:2.25rem; border-radius:.5rem; color:#64748b}
+  .pw-toggle:hover{background:#f1f5f9; color:#0f172a}
+  .pw-toggle:focus-visible{outline:none; box-shadow:0 0 0 3px color-mix(in srgb, var(--tr-accent) 25%, transparent)}
+
+  a:focus-visible, button:focus-visible{outline:2px solid var(--tr-accent); outline-offset:2px}
 </style>
 </head>
-<body class="bg-slate-50 text-slate-900 antialiased">
-  <div class="relative overflow-hidden">
-    <div class="absolute inset-0 landing-grid landing-glow pointer-events-none"></div>
+<body class="antialiased">
+  <a href="#conteudo" class="skip-link">Pular para o conteúdo</a>
 
-    <header id="siteHeader" class="site-header fixed top-0 inset-x-0 border-b border-slate-200/80 bg-white/95 backdrop-blur">
-      <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-        <a href="#topo" class="flex min-w-0 items-center gap-2 sm:gap-3" aria-label="TRAXTER CRM">
-          <?php if ($logoDataUri !== ''): ?>
-            <span class="flex h-10 shrink-0 items-center rounded-xl bg-white px-1.5 sm:h-11">
-              <img src="<?= View::e($logoDataUri) ?>" alt="<?= View::e($companyName) ?>" class="site-header__logo">
-            </span>
-          <?php else: ?>
-            <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-traxterSidebar text-traxterText shadow-sm sm:h-11 sm:w-11">
-              <?= UI::icon('chart') ?>
-            </span>
-          <?php endif; ?>
-          
-        </a>
+  <header id="siteHeader" class="site-header fixed top-0 inset-x-0 border-b" style="border-color:var(--tr-line)">
+    <div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3.5 sm:px-6 lg:px-8">
+      <a href="#topo" class="flex min-w-0 items-center gap-2.5" aria-label="<?= View::e($companyName) ?>">
+        <?php if ($logoDataUri !== ''): ?>
+          <img src="<?= View::e($logoDataUri) ?>" alt="<?= View::e($companyName) ?>" class="site-header__logo">
+        <?php else: ?>
+          <span class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md" style="background:var(--tr-accent)">
+            <span class="tr-mono" style="font-weight:700; color:#14151A; font-size:.9rem"><?= View::e(mb_substr($companyName, 0, 1)) ?></span>
+          </span>
+          <span class="tr-display text-[1.05rem] font-extrabold tracking-tight text-white"><?= View::e($companyName) ?></span>
+        <?php endif; ?>
+      </a>
 
-        <button id="mobileMenuButton" type="button" class="tr-icon-btn md:hidden" aria-expanded="false" aria-controls="mobileMenu" aria-label="Abrir menu">
-          <?= UI::icon('list') ?>
-        </button>
+      <button id="mobileMenuButton" type="button" class="tr-icon-btn md:hidden" style="border-color:var(--tr-line); background:transparent; color:#E9EBEF" aria-expanded="false" aria-controls="mobileMenu" aria-label="Abrir menu">
+        <?= UI::icon('list') ?>
+      </button>
 
-        <nav class="hidden items-center gap-2 md:flex">
-          <a class="px-3 py-2 text-sm font-medium text-slate-600 transition hover:text-traxterAccent" href="#recursos">Recursos</a>
-          <a class="px-3 py-2 text-sm font-medium text-slate-600 transition hover:text-traxterAccent" href="#solucoes">Soluções</a>
-          <a class="px-3 py-2 text-sm font-medium text-slate-600 transition hover:text-traxterAccent" href="#beneficios">Benefícios</a>
-          <a class="px-3 py-2 text-sm font-medium text-slate-600 transition hover:text-traxterAccent" href="#planos">Planos</a>
-          <a class="px-3 py-2 text-sm font-medium text-slate-600 transition hover:text-traxterAccent" href="#contato">Contato</a>
-          <button type="button" class="tr-btn tr-icon-btn--accent ml-3 px-5 py-2 text-sm" data-no-iconify="true" data-open-login="1">Entrar</button>
-        </nav>
+      <nav class="hidden items-center gap-1 md:flex" aria-label="Navegação principal">
+        <?php foreach ($navItems as $item): ?>
+          <a class="rounded-md px-3 py-2 text-[0.83rem] font-medium transition" style="color:var(--tr-text-dim)" href="<?= View::e($item['href']) ?>"><?= View::e($item['label']) ?></a>
+        <?php endforeach; ?>
+        <button type="button" class="btn-tr-primary ml-2 !py-2 !px-4 text-[0.83rem]" data-no-iconify="true" data-open-login="1">Entrar</button>
+      </nav>
+    </div>
+
+    <div id="mobileMenu" class="site-header__menu border-t md:hidden" style="border-color:var(--tr-line); background:var(--tr-graphite)" hidden aria-hidden="true">
+      <div class="mx-auto flex max-w-6xl flex-col gap-1 px-4 py-3 sm:px-6">
+        <?php foreach ($navItems as $item): ?>
+          <a class="rounded-md px-3 py-2.5 text-sm font-medium text-white/80 hover:bg-white/5" href="<?= View::e($item['href']) ?>"><?= View::e($item['label']) ?></a>
+        <?php endforeach; ?>
+        <button type="button" class="btn-tr-primary mt-1 w-full justify-center" data-no-iconify="true" data-open-login="1">Entrar</button>
       </div>
+    </div>
+  </header>
 
-      <div id="mobileMenu" class="site-header__menu border-t border-slate-200 bg-white md:hidden" hidden aria-hidden="true">
-        <div class="mx-auto flex max-w-7xl flex-col gap-1 px-4 py-4 sm:px-6">
-          <a class="rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100" href="#recursos">Recursos</a>
-          <a class="rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100" href="#solucoes">Soluções</a>
-          <a class="rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100" href="#beneficios">Benefícios</a>
-          <a class="rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100" href="#planos">Planos</a>
-          <a class="rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100" href="#contato">Contato</a>
-          <button type="button" class="tr-btn tr-icon-btn--accent mt-2 w-full justify-center px-5 py-3 text-sm" data-no-iconify="true" data-open-login="1">Entrar</button>
-        </div>
-      </div>
-    </header>
+  <div id="headerSpacer" aria-hidden="true"></div>
 
-    <div id="headerSpacer" aria-hidden="true"></div>
-
-    <main id="topo" class="relative z-10">
-      <section class="px-4 pb-16 pt-10 sm:px-6 lg:px-8 lg:pb-24 lg:pt-16">
-        <div class="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[1.05fr_.95fr]">
-          <div>
-            <span class="tr-badge border-orange-200 bg-orange-50 text-traxterAccent">Gestão inteligente para operações premium</span>
-            <h1 class="mt-6 max-w-3xl text-4xl font-semibold leading-tight text-traxterSidebar sm:text-5xl lg:text-6xl">
-              Gestão inteligente para quem desenvolve grandes resultados.
-            </h1>
-            <p class="mt-6 max-w-2xl text-lg leading-8 text-slate-600">
-              O <?= View::e($companyName) ?> organiza clientes, propostas, contratos, projetos, financeiro e ordens de serviço em uma experiência SaaS moderna, segura e focada em produtividade.
-            </p>
-
-            <div class="mt-8 flex flex-col gap-3 sm:flex-row">
-              <button type="button" class="tr-btn tr-icon-btn--accent px-6 py-3 text-base" data-no-iconify="true" data-open-login="1">Começar Agora</button>
-              <button type="button" class="tr-btn px-6 py-3 text-base" data-no-iconify="true" data-open-login="1">Entrar</button>
-            </div>
-
-            <div class="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <div class="tr-card border border-slate-200 p-4">
-                <div class="text-sm text-slate-500">Clientes organizados</div>
-                <div class="mt-2 text-2xl font-semibold text-traxterSidebar">+1.280</div>
-              </div>
-              <div class="tr-card border border-slate-200 p-4">
-                <div class="text-sm text-slate-500">Financeiro rastreável</div>
-                <div class="mt-2 text-2xl font-semibold text-traxterSidebar">99,9%</div>
-              </div>
-              <div class="tr-card border border-slate-200 p-4">
-                <div class="text-sm text-slate-500">Fluxos integrados</div>
-                <div class="mt-2 text-2xl font-semibold text-traxterSidebar">360°</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="relative">
-            <div class="landing-shell tr-card relative overflow-hidden border border-slate-200 p-4 shadow-xl shadow-slate-900/5 sm:p-6">
-              <div class="flex items-center justify-between rounded-2xl bg-traxterSidebar px-5 py-4 text-traxterText">
-                <div>
-                  <div class="text-sm font-medium text-slate-300">Painel executivo</div>
-                  <div class="mt-1 text-2xl font-semibold"><?= View::e($companyName) ?></div>
-                </div>
-                <span class="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white">Tempo real</span>
-              </div>
-
-              <div class="mt-5 grid gap-4 lg:grid-cols-[1.2fr_.8fr]">
-                <div class="space-y-4">
-                  <div class="grid grid-cols-2 gap-4">
-                    <div class="rounded-2xl border border-slate-200 bg-white p-4">
-                      <div class="flex items-center justify-between">
-                        <span class="text-sm text-slate-500">Receita prevista</span>
-                        <span class="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">+18%</span>
-                      </div>
-                      <div class="mt-3 text-3xl font-semibold text-traxterSidebar">R$ 84 mil</div>
-                      <div class="mt-2 text-xs text-slate-500">Visão consolidada comercial + financeiro</div>
-                    </div>
-                    <div class="rounded-2xl border border-slate-200 bg-white p-4">
-                      <div class="flex items-center justify-between">
-                        <span class="text-sm text-slate-500">OS em andamento</span>
-                        <span class="rounded-full bg-orange-50 px-2 py-1 text-xs font-semibold text-traxterAccent">24 ativas</span>
-                      </div>
-                      <div class="mt-3 text-3xl font-semibold text-traxterSidebar">06</div>
-                      <div class="mt-2 text-xs text-slate-500">Equipes com prioridade clara e prazo visível</div>
-                    </div>
-                  </div>
-
-                  <div class="rounded-2xl border border-slate-200 bg-white p-4">
-                    <div class="flex items-center justify-between">
-                      <div>
-                        <div class="text-sm font-medium text-slate-500">Performance mensal</div>
-                        <div class="text-xs text-slate-400">Indicadores integrados do CRM</div>
-                      </div>
-                      <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Dashboard</span>
-                    </div>
-                    <div class="mt-5 flex items-end gap-3">
-                      <div class="mock-chart-bar h-16 w-full"></div>
-                      <div class="mock-chart-bar h-24 w-full"></div>
-                      <div class="mock-chart-bar h-20 w-full"></div>
-                      <div class="mock-chart-bar h-28 w-full"></div>
-                      <div class="mock-chart-bar h-36 w-full"></div>
-                      <div class="mock-chart-bar h-24 w-full"></div>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="space-y-4">
-                  <div class="rounded-2xl border border-slate-200 bg-white p-4">
-                    <div class="text-sm font-medium text-slate-500">Pipeline comercial</div>
-                    <div class="mock-line mt-4 rounded-2xl bg-slate-50 p-2">
-                      <svg viewBox="0 0 300 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M8 78C42 70 46 24 86 30C120 35 141 82 182 66C215 53 235 15 292 21" stroke="#ee6c4d" stroke-width="4" stroke-linecap="round"/>
-                        <path d="M8 78C42 70 46 24 86 30C120 35 141 82 182 66C215 53 235 15 292 21" stroke="url(#fadeLine)" stroke-width="10" stroke-linecap="round" opacity=".2"/>
-                        <defs>
-                          <linearGradient id="fadeLine" x1="8" y1="10" x2="292" y2="10" gradientUnits="userSpaceOnUse">
-                            <stop stop-color="#ee6c4d"/>
-                            <stop offset="1" stop-color="#293241"/>
-                          </linearGradient>
-                        </defs>
-                      </svg>
-                    </div>
-                  </div>
-
-                  <div class="rounded-2xl border border-slate-200 bg-traxterSidebar p-4 text-white">
-                    <div class="flex items-center justify-between">
-                      <div>
-                        <div class="text-sm text-slate-300">Automação e controle</div>
-                        <div class="mt-1 text-xl font-semibold">Tudo conectado</div>
-                      </div>
-                      <span class="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold">SaaS Premium</span>
-                    </div>
-                    <ul class="mt-4 space-y-3 text-sm text-slate-200">
-                      <li class="flex items-center gap-2"><?= UI::icon('check', 'h-4 w-4') ?><span>Clientes, propostas e contratos sincronizados</span></li>
-                      <li class="flex items-center gap-2"><?= UI::icon('check', 'h-4 w-4') ?><span>Financeiro integrado com rastreabilidade</span></li>
-                      <li class="flex items-center gap-2"><?= UI::icon('check', 'h-4 w-4') ?><span>Ordens de serviço e projetos sob controle</span></li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-
-              <div class="pointer-events-none absolute -bottom-10 -left-10 h-28 w-28 rounded-full bg-traxterAccent/20 blur-3xl"></div>
-              <div class="pointer-events-none absolute -right-8 top-12 h-24 w-24 rounded-full bg-traxterSidebar/15 blur-3xl"></div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="recursos" class="px-4 py-16 sm:px-6 lg:px-8">
-        <div class="mx-auto max-w-7xl">
-          <div class="max-w-3xl">
-            <span class="tr-badge">Recursos principais</span>
-            <h2 class="mt-4 text-3xl font-semibold text-traxterSidebar sm:text-4xl">Tudo o que sua operação precisa para vender, executar e faturar melhor.</h2>
-            <p class="mt-4 text-lg text-slate-600">Recursos integrados para manter informações centralizadas, processos organizados e tomada de decisão orientada por dados.</p>
-          </div>
-
-          <div class="mt-10 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-            <?php foreach ($featureCards as $card): ?>
-              <article class="tr-card group border border-slate-200 p-5 transition duration-200 hover:-translate-y-1 hover:border-orange-200 hover:shadow-lg hover:shadow-orange-100/40">
-                <div class="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-traxterAccent transition group-hover:bg-orange-50">
-                  <?= UI::icon((string) $card['icon']) ?>
-                </div>
-                <h3 class="mt-5 text-lg font-semibold text-traxterSidebar"><?= View::e((string) $card['title']) ?></h3>
-                <p class="mt-3 text-sm leading-6 text-slate-600"><?= View::e((string) $card['description']) ?></p>
-              </article>
-            <?php endforeach; ?>
-          </div>
-        </div>
-      </section>
-
-      <section id="solucoes" class="bg-traxterSidebar px-4 py-16 text-white sm:px-6 lg:px-8">
-        <div class="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[.95fr_1.05fr] lg:items-center">
-          <div>
-            <span class="tr-badge border-white/15 bg-white/10 text-white">Diferenciais</span>
-            <h2 class="mt-4 text-3xl font-semibold sm:text-4xl">Um CRM pensado para operações que exigem organização, controle e credibilidade.</h2>
-            <p class="mt-5 max-w-2xl text-lg leading-8 text-slate-300">O TRAXTER CRM conecta comercial, operação e financeiro em uma jornada única para sua empresa crescer com mais previsibilidade e menos retrabalho.</p>
-          </div>
-          <div class="grid gap-4 sm:grid-cols-2">
-            <?php foreach ($benefits as $item): ?>
-              <div class="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
-                <div class="flex items-start gap-3">
-                  <span class="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-traxterAccent"><?= UI::icon('check', 'h-4 w-4') ?></span>
-                  <p class="text-sm leading-6 text-slate-200"><?= View::e($item) ?></p>
-                </div>
-              </div>
-            <?php endforeach; ?>
-          </div>
-        </div>
-      </section>
-
-      <section id="beneficios" class="px-4 py-16 sm:px-6 lg:px-8">
-        <div class="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1fr_.9fr] lg:items-center">
-          <div>
-            <span class="tr-badge">Produtividade</span>
-            <h2 class="mt-4 text-3xl font-semibold text-traxterSidebar sm:text-4xl">Sua gestão em um único lugar, com menos ruído e mais resultado.</h2>
-            <div class="mt-8 space-y-4">
-              <?php foreach ($productivityItems as $item): ?>
-                <div class="tr-card flex items-start gap-4 border border-slate-200 p-4">
-                  <span class="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-50 text-traxterAccent"><?= UI::icon('check') ?></span>
-                  <div>
-                    <div class="font-semibold text-traxterSidebar"><?= View::e($item) ?></div>
-                    <div class="mt-1 text-sm text-slate-600">Fluxos intuitivos, indicadores claros e acompanhamento operacional com foco em eficiência.</div>
-                  </div>
-                </div>
-              <?php endforeach; ?>
-            </div>
-          </div>
-          <div class="tr-card border border-slate-200 p-6">
-            <div class="flex items-center justify-between">
-              <div>
-                <div class="text-sm font-medium text-slate-500">Panorama de produtividade</div>
-                <div class="text-2xl font-semibold text-traxterSidebar">Operação organizada</div>
-              </div>
-              <span class="rounded-full bg-orange-50 px-3 py-1 text-xs font-semibold text-traxterAccent">+Eficiência</span>
-            </div>
-            <div class="mt-6 grid gap-4 sm:grid-cols-2">
-              <div class="rounded-2xl bg-slate-50 p-4">
-                <div class="text-sm text-slate-500">Prazos monitorados</div>
-                <div class="mt-2 text-3xl font-semibold text-traxterSidebar">97%</div>
-              </div>
-              <div class="rounded-2xl bg-slate-50 p-4">
-                <div class="text-sm text-slate-500">Processos centralizados</div>
-                <div class="mt-2 text-3xl font-semibold text-traxterSidebar">8 módulos</div>
-              </div>
-              <div class="rounded-2xl bg-slate-50 p-4 sm:col-span-2">
-                <div class="text-sm text-slate-500">Experiência operacional</div>
-                <div class="mt-4 flex items-center gap-3">
-                  <span class="h-3 flex-1 rounded-full bg-slate-200"><span class="block h-3 rounded-full bg-traxterAccent" style="width:82%"></span></span>
-                  <span class="text-sm font-semibold text-traxterSidebar">82%</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="bg-slate-100/80 px-4 py-16 sm:px-6 lg:px-8">
-        <div class="mx-auto max-w-7xl">
-          <div class="max-w-3xl">
-            <span class="tr-badge">Dashboard</span>
-            <h2 class="mt-4 text-3xl font-semibold text-traxterSidebar sm:text-4xl">Visual moderno para acompanhar o que realmente importa.</h2>
-            <p class="mt-4 text-lg text-slate-600">Indicadores, cards, badges e gráficos organizados para leitura executiva e acompanhamento contínuo da operação.</p>
-          </div>
-
-          <div class="mt-10 grid gap-6 lg:grid-cols-[1.15fr_.85fr]">
-            <div class="tr-card border border-slate-200 p-6">
-              <div class="grid gap-4 md:grid-cols-3">
-                <div class="rounded-2xl bg-slate-50 p-4">
-                  <div class="text-sm text-slate-500">Recebíveis</div>
-                  <div class="mt-2 text-2xl font-semibold text-traxterSidebar">R$ 132 mil</div>
-                </div>
-                <div class="rounded-2xl bg-slate-50 p-4">
-                  <div class="text-sm text-slate-500">Propostas ativas</div>
-                  <div class="mt-2 text-2xl font-semibold text-traxterSidebar">18</div>
-                </div>
-                <div class="rounded-2xl bg-slate-50 p-4">
-                  <div class="text-sm text-slate-500">Projetos</div>
-                  <div class="mt-2 text-2xl font-semibold text-traxterSidebar">11</div>
-                </div>
-              </div>
-              <div class="mt-6 rounded-2xl border border-slate-200 p-5">
-                <div class="flex items-center justify-between">
-                  <div class="text-base font-semibold text-traxterSidebar">Indicadores consolidados</div>
-                  <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Atualizado</span>
-                </div>
-                <div class="mt-6 flex items-end gap-4">
-                  <div class="mock-chart-bar h-24 w-full"></div>
-                  <div class="mock-chart-bar h-32 w-full"></div>
-                  <div class="mock-chart-bar h-20 w-full"></div>
-                  <div class="mock-chart-bar h-36 w-full"></div>
-                  <div class="mock-chart-bar h-28 w-full"></div>
-                  <div class="mock-chart-bar h-40 w-full"></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="space-y-6">
-              <div class="tr-card border border-slate-200 p-6">
-                <div class="text-base font-semibold text-traxterSidebar">Radar operacional</div>
-                <div class="mt-4 grid gap-3">
-                  <div class="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
-                    <span class="text-sm text-slate-600">Clientes ativos</span>
-                    <span class="tr-badge">426</span>
-                  </div>
-                  <div class="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
-                    <span class="text-sm text-slate-600">Ordens de serviço</span>
-                    <span class="tr-badge">24</span>
-                  </div>
-                  <div class="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
-                    <span class="text-sm text-slate-600">Contratos vigentes</span>
-                    <span class="tr-badge">39</span>
-                  </div>
-                </div>
-              </div>
-              <div class="tr-card border border-slate-200 p-6">
-                <div class="text-base font-semibold text-traxterSidebar">Visão premium</div>
-                <p class="mt-3 text-sm leading-6 text-slate-600">Design limpo, contraste equilibrado, componentes consistentes e foco em confiança para demonstrar maturidade de produto SaaS corporativo.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="planos" class="px-4 py-16 sm:px-6 lg:px-8">
-        <div class="mx-auto max-w-5xl">
-          <div class="rounded-[2rem] bg-traxterSidebar px-6 py-12 text-center text-white sm:px-10">
-            <span class="tr-badge border-white/15 bg-white/10 text-white">CTA final</span>
-            <h2 class="mt-4 text-3xl font-semibold sm:text-4xl">Pronto para transformar sua gestão?</h2>
-            <p class="mx-auto mt-4 max-w-2xl text-lg leading-8 text-slate-300">Entre no <?= View::e($companyName) ?> e leve sua operação para um padrão mais profissional, organizado e escalável.</p>
-            <div class="mt-8 flex justify-center">
-              <button type="button" class="tr-btn tr-icon-btn--accent px-6 py-3 text-base" data-no-iconify="true" data-open-login="1">Entrar no TRAXTER CRM</button>
-            </div>
-          </div>
-        </div>
-      </section>
-    </main>
-
-    <footer id="contato" class="border-t border-slate-200 bg-white px-4 py-12 sm:px-6 lg:px-8">
-      <div class="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1.2fr_.8fr]">
+  <main id="conteudo">
+    <section id="topo" class="glow-hero px-4 pb-16 pt-14 sm:px-6 lg:px-8 lg:pb-24 lg:pt-20">
+      <div class="mx-auto grid max-w-6xl items-center gap-14 lg:grid-cols-[1.05fr_.95fr]">
         <div>
-          <div class="flex items-center gap-3">
-            <span class="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-traxterSidebar text-traxterText"><?= UI::icon('building') ?></span>
-            <div>
-              <div class="text-lg font-semibold text-traxterSidebar"><?= View::e($companyName) ?></div>
-              <div class="text-sm text-slate-500"><?= View::e($tagline) ?></div>
-            </div>
+          <div class="hero-in hero-in-1 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[0.75rem] font-medium" style="border-color:var(--tr-line); color:var(--tr-text-dim)">
+            <span class="brand-dot"></span><?= View::e($companyName) ?>
           </div>
-          <p class="mt-4 max-w-xl text-sm leading-7 text-slate-600">Software profissional para centralizar operações comerciais, financeiras e operacionais com a consistência visual e a confiança que um produto SaaS premium exige.</p>
-          <?php if ((string) ($branding['company_cnpj'] ?? '') !== ''): ?>
-            <div class="mt-3 text-sm text-slate-500">CNPJ: <?= View::e((string) $branding['company_cnpj']) ?></div>
-          <?php endif; ?>
+          <h1 class="hero-in hero-in-2 tr-display mt-5 max-w-xl text-[2.4rem] font-extrabold leading-[1.08] tracking-tight text-white sm:text-[2.75rem]">
+            Cada cliente, proposta, contrato e ordem de serviço —<br>
+            <span style="color:var(--tr-accent)">num só sistema.</span>
+          </h1>
+          <p class="hero-in hero-in-3 mt-5 max-w-lg text-base leading-7 sm:text-lg" style="color:var(--tr-text-dim)">
+            Chega de dispersão entre planilhas e documentos avulsos. O <?= View::e($companyName) ?> centraliza clientes, propostas, contratos, projetos, financeiro e ordens de serviço em um único fluxo autenticado, com auditoria.
+          </p>
+
+          <div class="hero-in hero-in-4 mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <button type="button" class="btn-tr-primary" data-no-iconify="true" data-open-login="1">Entrar no sistema
+              <?= UI::icon('arrow-right', 'w-4 h-4') ?>
+            </button>
+            <a href="#modulos" class="btn-tr-ghost">Ver módulos</a>
+          </div>
+          <p class="hero-in hero-in-4 mt-4 tr-mono text-[0.72rem]" style="color:var(--tr-text-dim)">
+            Acesso mediante credenciais fornecidas pelo administrador do sistema.
+          </p>
         </div>
 
-        <div class="grid gap-8 sm:grid-cols-2">
-          <div>
-            <div class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Links rápidos</div>
-            <div class="mt-4 flex flex-col gap-3 text-sm">
-              <a class="text-slate-600 hover:text-traxterAccent" href="#recursos">Recursos</a>
-              <a class="text-slate-600 hover:text-traxterAccent" href="#solucoes">Soluções</a>
-              <a class="text-slate-600 hover:text-traxterAccent" href="#beneficios">Benefícios</a>
-              <a class="text-slate-600 hover:text-traxterAccent" href="#planos">Planos</a>
-            </div>
-          </div>
-          <div>
-            <div class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Contato</div>
-            <div class="mt-4 flex flex-col gap-3 text-sm text-slate-600">
-              <?php if ((string) ($branding['company_email'] ?? '') !== ''): ?><span><?= View::e((string) $branding['company_email']) ?></span><?php endif; ?>
-              <?php if ((string) ($branding['company_whatsapp'] ?? '') !== ''): ?><span><?= View::e((string) $branding['company_whatsapp']) ?></span><?php endif; ?>
-              <?php if ((string) ($branding['company_website'] ?? '') !== ''): ?><a class="hover:text-traxterAccent" href="<?= View::e((string) $branding['company_website']) ?>" target="_blank" rel="noopener"><?= View::e((string) $branding['company_website']) ?></a><?php endif; ?>
-              <div class="mt-2 flex items-center gap-2">
-                <span class="tr-icon-btn" aria-label="LinkedIn"><?= UI::icon('users') ?></span>
-                <span class="tr-icon-btn" aria-label="Instagram"><?= UI::icon('palette') ?></span>
-                <span class="tr-icon-btn" aria-label="Website"><?= UI::icon('building') ?></span>
+        <div class="hero-in hero-in-4">
+          <div class="os-card reveal">
+            <div class="os-head">
+              <div>
+                <div class="tag-mono">OS #1042</div>
+                <div style="font-weight:600; font-size:.95rem; margin-top:.25rem; color:#fff">Manutenção preventiva</div>
+              </div>
+              <div class="tr-mono text-[0.7rem] font-bold rounded-md px-2.5 py-1" style="background:color-mix(in srgb, var(--tr-accent) 14%, transparent); color:var(--tr-accent)">
+                EM ANDAMENTO
               </div>
             </div>
+            <div class="os-status-track">
+              <div class="os-step done"><div class="os-connector"></div><div class="os-dot"></div><span class="os-label">Aberto</span></div>
+              <div class="os-step active"><div class="os-connector"></div><div class="os-dot"></div><span class="os-label">Em andamento</span></div>
+              <div class="os-step"><div class="os-connector"></div><div class="os-dot"></div><span class="os-label">Concluído</span></div>
+              <div class="os-step"><div class="os-dot"></div><span class="os-label">Faturado</span></div>
+            </div>
+            <div class="os-body">
+              <div class="os-row"><span>Cliente</span><span>Cliente cadastrado</span></div>
+              <div class="os-row"><span>Responsável</span><span>Técnico designado</span></div>
+              <div class="os-row"><span>Contrato vinculado</span><span class="tag-mono">CT-0001</span></div>
+              <div class="os-row"><span>Valor previsto</span><span style="color:var(--tr-accent); font-weight:700">R$ 480,00</span></div>
+            </div>
           </div>
+          <p class="mockup-caption">Ilustração da interface do sistema — dados fictícios.</p>
         </div>
       </div>
-      <div class="mx-auto mt-10 max-w-7xl border-t border-slate-200 pt-6 text-sm text-slate-500">
-        © <?= date('Y') ?> <?= View::e($companyName) ?>. Todos os direitos reservados.
-      </div>
-    </footer>
-  </div>
+    </section>
 
-  <div id="loginModal" class="<?= $openModal ? '' : 'modal-hidden' ?> fixed inset-0 z-50" <?= $openModal ? '' : 'hidden' ?> aria-hidden="<?= $openModal ? 'false' : 'true' ?>">
-    <div class="modal-overlay absolute inset-0 bg-slate-950/55"></div>
+    <div class="wrap section-pad" style="padding-top:0; padding-bottom:2.5rem">
+      <p class="tr-mono text-center text-[0.72rem] tracking-wider" style="color:var(--tr-text-dim)">
+        PARA QUEM PRECISA CENTRALIZAR CLIENTES, PROPOSTAS, CONTRATOS, PROJETOS, FINANCEIRO E ORDENS DE SERVIÇO EM UM SÓ LUGAR
+      </p>
+    </div>
+
+    <section id="solucao" class="section-pad paper">
+      <div class="wrap">
+        <div class="reveal max-w-xl">
+          <span class="eyebrow eyebrow--dark">O problema</span>
+          <h2 class="tr-display mt-4 text-[1.9rem] font-extrabold tracking-tight sm:text-[2.1rem]" style="color:#14151A">
+            Sua operação não cabe mais em planilhas e conversas paralelas.
+          </h2>
+        </div>
+        <div class="mt-12 grid gap-6 sm:grid-cols-3">
+          <?php foreach ($problemPoints as $i => $point): ?>
+            <div class="reveal reveal-delay-<?= View::e((string) ($i + 1)) ?>">
+              <div class="tr-mono text-[0.8rem] font-bold" style="color:color-mix(in srgb, var(--tr-accent) 80%, black 15%)"><?= View::e(sprintf('%02d', $i + 1)) ?></div>
+              <h3 class="mt-2.5 text-[1.02rem] font-bold" style="color:#14151A"><?= View::e((string) $point['title']) ?></h3>
+              <p class="mt-2 text-[0.88rem] leading-6" style="color:var(--tr-text-dim-2)"><?= View::e((string) $point['description']) ?></p>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+    </section>
+
+    <section id="modulos" class="section-pad">
+      <div class="wrap">
+        <span class="eyebrow">O que o sistema organiza</span>
+        <h2 class="tr-display mt-4 max-w-xl text-[1.9rem] font-extrabold tracking-tight text-white sm:text-[2.1rem]">
+          Oito módulos. Um sistema. Zero retrabalho.
+        </h2>
+
+        <div class="mt-11 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <?php foreach ($modules as $card): ?>
+            <div class="feature-card">
+              <span class="feature-num">/ <?= View::e(mb_strtoupper((string) $card['title'])) ?></span>
+              <div class="inline-flex h-9 w-9 items-center justify-center rounded-lg mb-3" style="background:color-mix(in srgb, var(--tr-accent) 12%, transparent); color:var(--tr-accent)">
+                <?= UI::icon((string) $card['icon'], 'w-4.5 h-4.5') ?>
+              </div>
+              <h3 class="font-bold text-[1rem] text-white"><?= View::e((string) $card['title']) ?></h3>
+              <p class="mt-2 text-[0.85rem] leading-6" style="color:var(--tr-text-dim)"><?= View::e((string) $card['description']) ?></p>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+    </section>
+
+    <section id="como-funciona" class="section-pad paper">
+      <div class="wrap">
+        <span class="eyebrow eyebrow--dark">Como funciona</span>
+        <h2 class="tr-display mt-4 max-w-xl text-[1.9rem] font-extrabold tracking-tight sm:text-[2.1rem]" style="color:#14151A">
+          O caminho real de uma ordem de serviço no sistema.
+        </h2>
+
+        <div class="mt-12 grid gap-7 sm:grid-cols-2 lg:grid-cols-4">
+          <?php foreach ($lifecycleStages as $stage): ?>
+            <div class="stage">
+              <div class="stage-num"><?= View::e((string) $stage['num']) ?></div>
+              <h3 class="mt-2.5 text-[0.98rem] font-bold" style="color:#14151A"><?= View::e((string) $stage['title']) ?></h3>
+              <p class="mt-2 text-[0.85rem] leading-6" style="color:var(--tr-text-dim-2)"><?= View::e((string) $stage['description']) ?></p>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-pad" style="background:var(--tr-graphite-3)">
+      <div class="wrap">
+        <div class="reveal max-w-xl">
+          <span class="eyebrow">Como o sistema é construído</span>
+          <h2 class="tr-display mt-4 text-[1.9rem] font-extrabold tracking-tight text-white sm:text-[2.1rem]">
+            Decisões concretas de arquitetura, não promessas genéricas.
+          </h2>
+        </div>
+
+        <div class="mt-11 grid gap-5 sm:grid-cols-3">
+          <?php foreach ($operationPoints as $i => $point): ?>
+            <div class="reveal reveal-delay-<?= View::e((string) ($i + 1)) ?> rounded-xl border p-5" style="border-color:var(--tr-line); background:rgba(255,255,255,.03)">
+              <h3 class="text-[0.98rem] font-bold text-white"><?= View::e((string) $point['title']) ?></h3>
+              <p class="mt-2 text-[0.85rem] leading-6" style="color:var(--tr-text-dim)"><?= View::e((string) $point['description']) ?></p>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+    </section>
+
+    <section id="faq" class="section-pad paper">
+      <div class="wrap" style="max-width:48rem">
+        <span class="eyebrow eyebrow--dark">Dúvidas frequentes</span>
+        <h2 class="tr-display mt-4 text-[1.7rem] font-extrabold tracking-tight" style="color:#14151A">Antes de entrar</h2>
+
+        <div class="mt-9 rounded-2xl px-6" style="background:var(--tr-paper)">
+          <?php foreach ($faqItems as $i => $item): ?>
+            <div class="faq-item<?= $i === 0 ? ' open' : '' ?>">
+              <button type="button" class="faq-q">
+                <?= View::e((string) $item['q']) ?>
+                <svg class="faq-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#14151A" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+              <div class="faq-a"><div class="faq-a-inner"><?= View::e((string) $item['a']) ?></div></div>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+    </section>
+
+    <section id="cta-final" class="section-pad">
+      <div class="wrap rounded-2xl border px-8 py-16 text-center sm:px-10" style="border-color:var(--tr-line); background:var(--tr-graphite-2)">
+        <h2 class="tr-display mx-auto max-w-xl text-[1.9rem] font-extrabold tracking-tight text-white sm:text-[2.1rem]">
+          Pronto para organizar sua operação?
+        </h2>
+        <p class="mx-auto mt-3 max-w-md text-[0.95rem] leading-7" style="color:var(--tr-text-dim)">
+          Use as credenciais fornecidas pelo administrador do sistema.
+        </p>
+        <div class="mt-8 flex justify-center">
+          <button type="button" class="btn-tr-primary" style="padding:.95rem 2.1rem" data-no-iconify="true" data-open-login="1">Entrar no sistema</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer id="contato" class="border-t px-4 py-12 sm:px-6 lg:px-8" style="border-color:var(--tr-line)">
+    <div class="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[1.2fr_.8fr]">
+      <div>
+        <div class="flex items-center gap-2.5">
+          <?php if ($logoDataUri !== ''): ?>
+            <img src="<?= View::e($logoDataUri) ?>" alt="<?= View::e($companyName) ?>" class="h-7 w-auto object-contain">
+          <?php else: ?>
+            <span class="inline-flex h-9 w-9 items-center justify-center rounded-lg" style="background:var(--tr-accent)"><?= UI::icon('building', 'w-4 h-4') ?></span>
+          <?php endif; ?>
+          <div class="tr-display text-[0.98rem] font-extrabold text-white"><?= View::e($companyName) ?></div>
+        </div>
+        <p class="mt-3 max-w-md text-[0.85rem] leading-6" style="color:var(--tr-text-dim)"><?= View::e($tagline) ?></p>
+        <?php if ((string) ($branding['company_cnpj'] ?? '') !== ''): ?>
+          <div class="mt-2 text-[0.8rem]" style="color:var(--tr-text-dim)">CNPJ: <?= View::e((string) $branding['company_cnpj']) ?></div>
+        <?php endif; ?>
+        <p class="mt-4 text-[0.8rem] leading-6" style="color:var(--tr-text-dim)">Sem acesso ainda? Fale com o administrador do sistema<?= (string) ($branding['company_email'] ?? '') !== '' ? ' em ' . View::e((string) $branding['company_email']) : '' ?>.</p>
+      </div>
+
+      <div>
+        <div class="tr-mono text-[0.7rem] font-semibold uppercase tracking-wider" style="color:var(--tr-text-dim)">Contato</div>
+        <div class="mt-3 flex flex-col gap-2 text-[0.85rem]" style="color:var(--tr-text-dim)">
+          <?php if ((string) ($branding['company_email'] ?? '') !== ''): ?><span><?= View::e((string) $branding['company_email']) ?></span><?php endif; ?>
+          <?php if ((string) ($branding['company_whatsapp'] ?? '') !== ''): ?><span><?= View::e((string) $branding['company_whatsapp']) ?></span><?php endif; ?>
+          <?php if ((string) ($branding['company_website'] ?? '') !== ''): ?><a class="hover:text-white" style="color:var(--tr-accent)" href="<?= View::e((string) $branding['company_website']) ?>" target="_blank" rel="noopener"><?= View::e((string) $branding['company_website']) ?></a><?php endif; ?>
+        </div>
+      </div>
+    </div>
+    <div class="mx-auto mt-9 max-w-6xl border-t pt-6 text-[0.8rem]" style="border-color:var(--tr-line); color:var(--tr-text-dim)">
+      © <?= date('Y') ?> <?= View::e($companyName) ?>
+    </div>
+  </footer>
+
+  <div id="loginModal" class="<?= $openModal ? '' : 'modal-hidden' ?> fixed inset-0 z-50" <?= $openModal ? '' : 'hidden' ?> role="dialog" aria-modal="true" aria-labelledby="loginTitle" aria-hidden="<?= $openModal ? 'false' : 'true' ?>">
+    <div class="modal-overlay absolute inset-0 bg-slate-950/60"></div>
     <div class="relative flex min-h-screen items-center justify-center p-4 sm:p-6">
-      <div class="modal-panel tr-card relative w-full max-w-lg overflow-hidden border border-slate-200 shadow-2xl shadow-slate-950/15">
-        <button id="closeLoginModal" type="button" class="tr-icon-btn absolute right-4 top-4 z-10" aria-label="Fechar modal">
+      <div class="modal-panel relative w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl shadow-slate-950/25 sm:p-8">
+        <button id="closeLoginModal" type="button" class="tr-icon-btn absolute right-4 top-4" aria-label="Fechar">
           <?= UI::icon('x') ?>
         </button>
-        <div class="grid md:grid-cols-[.92fr_1.08fr]">
-          <div class="hidden bg-traxterSidebar p-6 text-white md:block">
-            <div class="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold">TRAXTER CRM</div>
-            <h2 class="mt-6 text-2xl font-semibold">Acesse sua conta</h2>
-            <p class="mt-3 text-sm leading-6 text-slate-300">Entre para acompanhar clientes, propostas, contratos, projetos, financeiro e ordens de serviço com total integração.</p>
-            <div class="mt-8 space-y-4 text-sm text-slate-200">
-              <div class="flex items-start gap-3"><?= UI::icon('check', 'h-4 w-4 mt-1') ?><span>Experiência segura e profissional</span></div>
-              <div class="flex items-start gap-3"><?= UI::icon('check', 'h-4 w-4 mt-1') ?><span>Dados centralizados em um único ambiente</span></div>
-              <div class="flex items-start gap-3"><?= UI::icon('check', 'h-4 w-4 mt-1') ?><span>Visual alinhado ao restante do CRM</span></div>
+
+        <div id="loginTitle" class="tr-display text-lg font-extrabold tracking-tight text-slate-900">Entrar</div>
+        <div class="mt-1 text-[0.85rem] text-slate-500"><?= View::e($companyName) ?></div>
+
+        <?php if ($errorMessage !== ''): ?>
+          <div class="mt-5 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-[0.83rem] text-red-700" role="alert"><?= View::e($errorMessage) ?></div>
+        <?php endif; ?>
+
+        <form method="post" action="<?= View::e($base . '/login') ?>" class="mt-6 space-y-4">
+          <input type="hidden" name="_csrf" value="<?= View::e($csrf) ?>">
+          <div>
+            <label class="tr-label" for="loginEmail">E-mail</label>
+            <input id="loginEmail" name="email" type="email" class="mt-1 tr-input" autocomplete="email" required>
+          </div>
+          <div>
+            <label class="tr-label" for="loginPassword">Senha</label>
+            <div class="relative mt-1">
+              <input id="loginPassword" name="password" type="password" class="tr-input pr-11" autocomplete="current-password" required>
+              <button type="button" id="togglePassword" class="pw-toggle absolute right-1 top-1/2 -translate-y-1/2" aria-label="Mostrar senha" aria-pressed="false">
+                <?= UI::icon('eye', 'w-4 h-4') ?>
+              </button>
             </div>
           </div>
 
-          <div class="p-6 sm:p-8">
-            <div class="text-2xl font-semibold text-traxterSidebar">TRAXTER CRM</div>
-            <div class="mt-1 text-slate-600">Acesse sua conta</div>
-
-            <?php if ($errorMessage !== ''): ?>
-              <div class="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><?= View::e($errorMessage) ?></div>
-            <?php endif; ?>
-
-            <form method="post" action="<?= View::e($base . '/login') ?>" class="mt-6 space-y-4">
-              <input type="hidden" name="_csrf" value="<?= View::e($csrf) ?>">
-              <div>
-                <label class="tr-label" for="loginEmail">E-mail</label>
-                <input id="loginEmail" name="email" type="email" class="mt-1 tr-input" autocomplete="email" required>
-              </div>
-              <div>
-                <label class="tr-label" for="loginPassword">Senha</label>
-                <input id="loginPassword" name="password" type="password" class="mt-1 tr-input" autocomplete="current-password" required>
-              </div>
-
-              <div class="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-                <label class="inline-flex items-center gap-2 text-slate-600">
-                  <input type="checkbox" name="remember" value="1" class="rounded border-slate-300 text-traxterAccent focus:ring-traxterAccent">
-                  <span>Lembrar-me</span>
-                </label>
-                <a href="#contato" class="font-medium text-traxterAccent hover:underline">Esqueci minha senha</a>
-              </div>
-
-              <div class="flex flex-col gap-3 pt-2">
-                <button class="tr-btn tr-icon-btn--accent w-full justify-center px-5 py-3 text-base" data-no-iconify="true" type="submit">Entrar</button>
-                <button class="tr-btn w-full justify-center px-5 py-3 text-base" data-no-iconify="true" type="button">Solicitar Demonstração</button>
-              </div>
-            </form>
+          <div class="flex items-center justify-between text-[0.83rem]">
+            <label class="inline-flex items-center gap-2 text-slate-600">
+              <input type="checkbox" name="remember" value="1" class="rounded border-slate-300 text-traxterAccent focus:ring-traxterAccent">
+              <span>Lembrar-me</span>
+            </label>
+            <a href="#contato" class="font-medium text-traxterAccent hover:underline">Esqueci minha senha</a>
           </div>
-        </div>
+
+          <button class="w-full rounded-lg bg-traxterSidebar px-5 py-3 text-[0.9rem] font-semibold text-white transition hover:opacity-90" data-no-iconify="true" type="submit">Entrar</button>
+        </form>
       </div>
     </div>
   </div>
@@ -577,12 +620,33 @@ $openModal = $errorMessage !== '';
       const modal = document.getElementById('loginModal');
       const closeButton = document.getElementById('closeLoginModal');
       const emailField = document.getElementById('loginEmail');
+      const passwordField = document.getElementById('loginPassword');
+      const togglePassword = document.getElementById('togglePassword');
       const mobileMenuButton = document.getElementById('mobileMenuButton');
       const mobileMenu = document.getElementById('mobileMenu');
       const siteHeader = document.getElementById('siteHeader');
       const headerSpacer = document.getElementById('headerSpacer');
       const openButtons = document.querySelectorAll('[data-open-login="1"]');
+      const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       let lastTrigger = null;
+
+      const EYE = '<path d="M1.5 12s4-7.5 10.5-7.5S22.5 12 22.5 12 18.5 19.5 12 19.5 1.5 12 1.5 12Z"></path><path d="M12 15.75A3.75 3.75 0 1 0 12 8.25a3.75 3.75 0 0 0 0 7.5Z"></path>';
+      const EYE_OFF = '<path d="M3 3l18 18"></path><path d="M10.58 10.58a3 3 0 0 0 4.24 4.24"></path><path d="M9.88 5.09A9.77 9.77 0 0 1 12 4.5c6.5 0 10.5 7.5 10.5 7.5a17.6 17.6 0 0 1-3.38 4.35M6.6 6.6C4.2 8.1 2.3 10.6 1.5 12c0 0 4 7.5 10.5 7.5 1.6 0 3.02-.36 4.26-.96"></path>';
+
+      function svgIcon(pathData){
+        return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" class="w-4 h-4">' + pathData + '</svg>';
+      }
+
+      if (togglePassword && passwordField) {
+        togglePassword.innerHTML = svgIcon(EYE);
+        togglePassword.addEventListener('click', function(){
+          const showing = passwordField.type === 'text';
+          passwordField.type = showing ? 'password' : 'text';
+          togglePassword.setAttribute('aria-pressed', showing ? 'false' : 'true');
+          togglePassword.setAttribute('aria-label', showing ? 'Mostrar senha' : 'Ocultar senha');
+          togglePassword.innerHTML = svgIcon(showing ? EYE : EYE_OFF);
+        });
+      }
 
       function syncHeaderOffset() {
         if (!siteHeader || !headerSpacer) return;
@@ -608,20 +672,25 @@ $openModal = $errorMessage !== '';
       }
 
       if (mobileMenuButton && mobileMenu) {
-        mobileMenuButton.addEventListener('click', () => {
-          const opened = !mobileMenu.hidden;
-          if (opened) {
-            closeMobileMenu();
-          } else {
-            openMobileMenu();
-          }
+        mobileMenuButton.addEventListener('click', function(){
+          if (!mobileMenu.hidden) { closeMobileMenu(); } else { openMobileMenu(); }
         });
+        mobileMenu.querySelectorAll('a, button').forEach(function(item){
+          item.addEventListener('click', closeMobileMenu);
+        });
+      }
 
-        mobileMenu.querySelectorAll('a, button').forEach((item) => {
-          item.addEventListener('click', () => {
-            closeMobileMenu();
-          });
-        });
+      function trapFocus(event) {
+        if (event.key !== 'Tab' || !modal || modal.classList.contains('modal-hidden')) return;
+        const focusables = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault(); last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault(); first.focus();
+        }
       }
 
       function openModal(trigger) {
@@ -630,9 +699,7 @@ $openModal = $errorMessage !== '';
         modal.hidden = false;
         modal.setAttribute('aria-hidden', 'false');
         modal.classList.remove('modal-hidden');
-        window.requestAnimationFrame(() => {
-          if (emailField) emailField.focus();
-        });
+        window.requestAnimationFrame(function(){ if (emailField) emailField.focus(); });
         document.body.classList.add('overflow-hidden');
       }
 
@@ -641,44 +708,27 @@ $openModal = $errorMessage !== '';
         modal.classList.add('modal-hidden');
         modal.setAttribute('aria-hidden', 'true');
         document.body.classList.remove('overflow-hidden');
-        window.setTimeout(() => {
-          if (modal.classList.contains('modal-hidden')) {
-            modal.hidden = true;
-          }
-        }, 240);
-        if (lastTrigger instanceof HTMLElement) {
-          lastTrigger.focus();
-        }
+        window.setTimeout(function(){
+          if (modal.classList.contains('modal-hidden')) { modal.hidden = true; }
+        }, prefersReducedMotion ? 0 : 220);
+        if (lastTrigger instanceof HTMLElement) { lastTrigger.focus(); }
       }
 
-      openButtons.forEach((button) => {
-        button.addEventListener('click', () => openModal(button));
-      });
-
-      if (closeButton) {
-        closeButton.addEventListener('click', closeModal);
-      }
-
+      openButtons.forEach(function(button){ button.addEventListener('click', function(){ openModal(button); }); });
+      if (closeButton) closeButton.addEventListener('click', closeModal);
       if (modal) {
-        modal.addEventListener('click', (event) => {
-          if (event.target === modal || event.target.classList.contains('modal-overlay')) {
-            closeModal();
-          }
+        modal.addEventListener('click', function(event){
+          if (event.target === modal || event.target.classList.contains('modal-overlay')) closeModal();
         });
       }
-
-      document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && modal && !modal.classList.contains('modal-hidden')) {
-          closeModal();
-        }
+      document.addEventListener('keydown', function(event){
+        if (!modal || modal.classList.contains('modal-hidden')) return;
+        if (event.key === 'Escape') closeModal();
+        trapFocus(event);
       });
 
-      window.addEventListener('resize', () => {
-        if (window.innerWidth >= 768) {
-          closeMobileMenu();
-        } else {
-          syncHeaderOffset();
-        }
+      window.addEventListener('resize', function(){
+        if (window.innerWidth >= 768) { closeMobileMenu(); } else { syncHeaderOffset(); }
       });
 
       if (!<?= $openModal ? 'true' : 'false' ?> && modal) {
@@ -689,6 +739,34 @@ $openModal = $errorMessage !== '';
 
       closeMobileMenu();
       syncHeaderOffset();
+
+      // FAQ accordion — um item aberto por vez.
+      document.querySelectorAll('.faq-item').forEach(function(item){
+        var trigger = item.querySelector('.faq-q');
+        if (!trigger) return;
+        trigger.addEventListener('click', function(){
+          var isOpen = item.classList.contains('open');
+          document.querySelectorAll('.faq-item').forEach(function(i){ i.classList.remove('open'); });
+          if (!isOpen) item.classList.add('open');
+        });
+      });
+
+      // Reveal discreto ao rolar; se não houver IntersectionObserver ou o usuário
+      // preferir menos movimento, o conteúdo aparece imediatamente (nunca fica oculto).
+      const revealEls = document.querySelectorAll('.reveal');
+      if (prefersReducedMotion || !('IntersectionObserver' in window)) {
+        revealEls.forEach(function(el){ el.classList.add('is-visible'); });
+      } else {
+        const observer = new IntersectionObserver(function(entries){
+          entries.forEach(function(entry){
+            if (entry.isIntersecting) {
+              entry.target.classList.add('is-visible');
+              observer.unobserve(entry.target);
+            }
+          });
+        }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+        revealEls.forEach(function(el){ observer.observe(el); });
+      }
     })();
   </script>
 </body>

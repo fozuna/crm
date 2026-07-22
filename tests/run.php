@@ -87,10 +87,22 @@ $failures += (int) $leadFailures;
 $serviceOrderFailures = require __DIR__ . '/service_orders_module.php';
 $failures += (int) $serviceOrderFailures;
 
+$serviceOrderReportFailures = require __DIR__ . '/service_orders_report_repository.php';
+$failures += (int) $serviceOrderReportFailures;
+
+$financeReportFailures = require __DIR__ . '/finance_report_repository.php';
+$failures += (int) $financeReportFailures;
+
+$financeReportControllerFailures = require __DIR__ . '/finance_report_controller.php';
+$failures += (int) $financeReportControllerFailures;
+
 $approvalFailures = require __DIR__ . '/service_order_approval_module.php';
 $failures += (int) $approvalFailures;
 
 $productionErrorFailures = require __DIR__ . '/production_error_handling.php';
 $failures += (int) $productionErrorFailures;
+
+$landingLoginFailures = require __DIR__ . '/landing_login_page.php';
+$failures += (int) $landingLoginFailures;
 
 exit($failures > 0 ? 1 : 0);
