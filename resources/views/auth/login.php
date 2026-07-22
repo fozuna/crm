@@ -50,9 +50,11 @@ $pageSchemaJsonLd = [
     'telephone' => (string) ($branding['company_whatsapp'] ?? ''),
 ];
 
+// Header e footer da landing têm fundo escuro (grafite) — a variante correta é o
+// "logo claro" (logo_light_*), pensado em /empresa para uso sobre fundo escuro.
 $logoDataUri = '';
-$logoPath = trim((string) ($branding['logo_dark_path'] ?? ''));
-$logoMime = trim((string) ($branding['logo_dark_mime'] ?? ''));
+$logoPath = trim((string) ($branding['logo_light_path'] ?? ''));
+$logoMime = trim((string) ($branding['logo_light_mime'] ?? ''));
 if ($logoPath !== '' && is_file($logoPath)) {
     $binary = @file_get_contents($logoPath);
     if ($binary !== false && $binary !== '') {
