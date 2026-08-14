@@ -149,10 +149,24 @@ final class FinancialReceivableRepository
         return $stmt->fetchAll();
     }
 
+    /**
+     * Todos os títulos gerados para uma Ordem de Serviço (um-para-muitos via
+     * financial_accounts_receivable.service_order_id), usado pelo fluxo de
+     * faturamento/parcelamento e pela seção "Financeiro" da OS.
+     */
+    public function listByServiceOrder(int $companyId, int $serviceOrderId): array
+    {
+        $stmt = DB::pdo()->prepare('SELECT * FROM financial_accounts_receivable WHERE company_id = :company_id AND service_order_id = :service_order_id AND deleted_at IS NULL ORDER BY installment_number ASC, id ASC');
+        $stmt->bindValue(':company_id', $companyId, \PDO::PARAM_INT);
+        $stmt->bindValue(':service_order_id', $serviceOrderId, \PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+
     public function create(FinancialReceivableData $data): int
     {
         $remaining = max(0, round($data->originalAmount + $data->interestAmount + $data->fineAmount - $data->discountAmount, 2));
-        $stmt = DB::pdo()->prepare('INSERT INTO financial_accounts_receivable (company_id, project_id, client_id, contract_id, source_installment_id, installment_number, total_installments, title, description, original_amount, discount_amount, interest_amount, fine_amount, received_amount, remaining_amount, due_date, issue_date, payment_date, competence_date, status, payment_method, payment_channel, bank_account_id, category_id, cost_center_id, invoice_number, external_reference, recurrence_group, recurrence_interval_months, notes, created_by, updated_by, created_at, updated_at) VALUES (:company_id, :project_id, :client_id, :contract_id, :source_installment_id, :installment_number, :total_installments, :title, :description, :original_amount, :discount_amount, :interest_amount, :fine_amount, 0, :remaining_amount, :due_date, :issue_date, :payment_date, :competence_date, :status, :payment_method, :payment_channel, :bank_account_id, :category_id, :cost_center_id, :invoice_number, :external_reference, :recurrence_group, :recurrence_interval_months, :notes, :created_by, :updated_by, NOW(), NOW())');
+        $stmt = DB::pdo()->prepare('INSERT INTO financial_accounts_receivable (company_id, project_id, client_id, contract_id, service_order_id, source_installment_id, installment_number, total_installments, title, description, original_amount, discount_amount, interest_amount, fine_amount, received_amount, remaining_amount, due_date, issue_date, payment_date, competence_date, status, payment_method, payment_channel, bank_account_id, category_id, cost_center_id, invoice_number, external_reference, recurrence_group, recurrence_interval_months, notes, created_by, updated_by, created_at, updated_at) VALUES (:company_id, :project_id, :client_id, :contract_id, :service_order_id, :source_installment_id, :installment_number, :total_installments, :title, :description, :original_amount, :discount_amount, :interest_amount, :fine_amount, 0, :remaining_amount, :due_date, :issue_date, :payment_date, :competence_date, :status, :payment_method, :payment_channel, :bank_account_id, :category_id, :cost_center_id, :invoice_number, :external_reference, :recurrence_group, :recurrence_interval_months, :notes, :created_by, :updated_by, NOW(), NOW())');
         $this->bindData($stmt, $data, $remaining, true);
         $stmt->execute();
         return (int) DB::pdo()->lastInsertId();
@@ -161,7 +175,7 @@ final class FinancialReceivableRepository
     public function update(int $id, FinancialReceivableData $data, float $receivedAmount): void
     {
         $remaining = max(0, round($data->originalAmount + $data->interestAmount + $data->fineAmount - $data->discountAmount - $receivedAmount, 2));
-        $stmt = DB::pdo()->prepare('UPDATE financial_accounts_receivable SET project_id = :project_id, client_id = :client_id, contract_id = :contract_id, source_installment_id = :source_installment_id, installment_number = :installment_number, total_installments = :total_installments, title = :title, description = :description, original_amount = :original_amount, discount_amount = :discount_amount, interest_amount = :interest_amount, fine_amount = :fine_amount, remaining_amount = :remaining_amount, due_date = :due_date, issue_date = :issue_date, payment_date = :payment_date, competence_date = :competence_date, status = :status, payment_method = :payment_method, payment_channel = :payment_channel, bank_account_id = :bank_account_id, category_id = :category_id, cost_center_id = :cost_center_id, invoice_number = :invoice_number, external_reference = :external_reference, recurrence_group = :recurrence_group, recurrence_interval_months = :recurrence_interval_months, notes = :notes, updated_by = :updated_by, updated_at = NOW() WHERE id = :id AND company_id = :company_id');
+        $stmt = DB::pdo()->prepare('UPDATE financial_accounts_receivable SET project_id = :project_id, client_id = :client_id, contract_id = :contract_id, service_order_id = :service_order_id, source_installment_id = :source_installment_id, installment_number = :installment_number, total_installments = :total_installments, title = :title, description = :description, original_amount = :original_amount, discount_amount = :discount_amount, interest_amount = :interest_amount, fine_amount = :fine_amount, remaining_amount = :remaining_amount, due_date = :due_date, issue_date = :issue_date, payment_date = :payment_date, competence_date = :competence_date, status = :status, payment_method = :payment_method, payment_channel = :payment_channel, bank_account_id = :bank_account_id, category_id = :category_id, cost_center_id = :cost_center_id, invoice_number = :invoice_number, external_reference = :external_reference, recurrence_group = :recurrence_group, recurrence_interval_months = :recurrence_interval_months, notes = :notes, updated_by = :updated_by, updated_at = NOW() WHERE id = :id AND company_id = :company_id');
         $this->bindData($stmt, $data, $remaining, false);
         $stmt->bindValue(':id', $id, \PDO::PARAM_INT);
         $stmt->execute();
@@ -316,6 +330,7 @@ final class FinancialReceivableRepository
         $stmt->bindValue(':project_id', $data->projectId, $data->projectId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT);
         $stmt->bindValue(':client_id', $data->clientId, \PDO::PARAM_INT);
         $stmt->bindValue(':contract_id', $data->contractId, $data->contractId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT);
+        $stmt->bindValue(':service_order_id', $data->serviceOrderId, $data->serviceOrderId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT);
         $stmt->bindValue(':source_installment_id', $data->sourceInstallmentId, $data->sourceInstallmentId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT);
         $stmt->bindValue(':installment_number', $data->installmentNumber, \PDO::PARAM_INT);
         $stmt->bindValue(':total_installments', $data->totalInstallments, \PDO::PARAM_INT);

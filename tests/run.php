@@ -6,14 +6,18 @@ require __DIR__ . '/../app/bootstrap.php';
 use App\Services\FinancialReceivablePdfGenerator;
 use App\Services\FinancialReceivablePdfValidator;
 
-$failures = 0;
+// Nome deliberadamente distinto de $failures: cada arquivo requerido abaixo também
+// declara sua própria $failures = 0 e, como require compartilha escopo, essa variável
+// aqui seria resetada a cada require, descartando o total acumulado — usar um nome
+// próprio para o acumulador deste arquivo evita a colisão.
+$totalFailures = 0;
 
-$assert = static function (bool $ok, string $message) use (&$failures): void {
+$assert = static function (bool $ok, string $message) use (&$totalFailures): void {
     if ($ok) {
         echo "OK  - {$message}\n";
         return;
     }
-    $failures++;
+    $totalFailures++;
     echo "FAIL- {$message}\n";
 };
 
@@ -79,33 +83,39 @@ $assert(str_starts_with($longPdf, '%PDF-1.4'), 'Geração com descrição longa 
 $assert(str_contains($longPdf, 'Itens'), 'PDF com descrição longa mantém seção de itens');
 
 $databaseFailures = require __DIR__ . '/database_structure.php';
-$failures += (int) $databaseFailures;
+$totalFailures += (int) $databaseFailures;
 
 $leadFailures = require __DIR__ . '/leads_module.php';
-$failures += (int) $leadFailures;
+$totalFailures += (int) $leadFailures;
 
 $serviceOrderFailures = require __DIR__ . '/service_orders_module.php';
-$failures += (int) $serviceOrderFailures;
+$totalFailures += (int) $serviceOrderFailures;
 
 $serviceOrderReportFailures = require __DIR__ . '/service_orders_report_repository.php';
-$failures += (int) $serviceOrderReportFailures;
+$totalFailures += (int) $serviceOrderReportFailures;
+
+$serviceOrderListingSummaryFailures = require __DIR__ . '/service_orders_listing_summary.php';
+$totalFailures += (int) $serviceOrderListingSummaryFailures;
+
+$serviceOrderBillingFailures = require __DIR__ . '/service_order_billing_module.php';
+$totalFailures += (int) $serviceOrderBillingFailures;
 
 $financeReportFailures = require __DIR__ . '/finance_report_repository.php';
-$failures += (int) $financeReportFailures;
+$totalFailures += (int) $financeReportFailures;
 
 $financeReportControllerFailures = require __DIR__ . '/finance_report_controller.php';
-$failures += (int) $financeReportControllerFailures;
+$totalFailures += (int) $financeReportControllerFailures;
 
 $approvalFailures = require __DIR__ . '/service_order_approval_module.php';
-$failures += (int) $approvalFailures;
+$totalFailures += (int) $approvalFailures;
 
 $productionErrorFailures = require __DIR__ . '/production_error_handling.php';
-$failures += (int) $productionErrorFailures;
+$totalFailures += (int) $productionErrorFailures;
 
 $landingLoginFailures = require __DIR__ . '/landing_login_page.php';
-$failures += (int) $landingLoginFailures;
+$totalFailures += (int) $landingLoginFailures;
 
 $pdfsAllFailures = require __DIR__ . '/pdfs_all.php';
-$failures += (int) $pdfsAllFailures;
+$totalFailures += (int) $pdfsAllFailures;
 
-exit($failures > 0 ? 1 : 0);
+exit($totalFailures > 0 ? 1 : 0);

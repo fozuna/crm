@@ -55,7 +55,7 @@ final class DbUpgradeRunner
             'finance_installments' => ['paid_amount'],
             'projects' => ['description', 'owner_user_id', 'start_date', 'end_date', 'total', 'updated_at'],
             'proposal_items' => ['service_id', 'is_bonus', 'catalog_price'],
-            'financial_accounts_receivable' => ['company_id', 'remaining_amount', 'status', 'source_installment_id'],
+            'financial_accounts_receivable' => ['company_id', 'remaining_amount', 'status', 'source_installment_id', 'service_order_id'],
             'financial_receipts' => ['receipt_file_path', 'reversed_at', 'reversal_reason'],
             'leads' => ['person_type', 'document_number', 'email', 'phone', 'postal_code', 'street', 'street_number', 'neighborhood', 'city', 'state', 'birth_or_opening_date', 'market_segment', 'acquisition_source', 'stage', 'converted_at'],
             'servicos_avulsos' => ['numero_sequencial', 'numero_os', 'client_id', 'assigned_user_id', 'type', 'status', 'billable', 'financial_receivable_id'],
@@ -295,7 +295,17 @@ final class DbUpgradeRunner
                 'is_admin' => "ALTER TABLE users ADD COLUMN is_admin TINYINT(1) NOT NULL DEFAULT 0",
                 'role' => "ALTER TABLE users ADD COLUMN role ENUM('admin','pm','finance','auditor') NOT NULL DEFAULT 'pm'",
             ],
+            'financial_accounts_receivable' => [
+                'service_order_id' => "ALTER TABLE financial_accounts_receivable ADD COLUMN service_order_id INT UNSIGNED NULL AFTER contract_id",
+            ],
         ]);
+
+        [$osReceivableModsApplied, $osReceivableModsSkipped] = $this->ensureStatements($pdo, [
+            "ALTER TABLE financial_accounts_receivable ADD INDEX idx_financial_receivable_service_order (service_order_id)",
+            "ALTER TABLE financial_accounts_receivable ADD CONSTRAINT fk_financial_receivable_service_order FOREIGN KEY (service_order_id) REFERENCES servicos_avulsos(id) ON DELETE SET NULL",
+        ]);
+        $ensAdded += $osReceivableModsApplied;
+        $ensSkipped += $osReceivableModsSkipped;
 
         $this->harmonizeLegacyContractSchema($pdo);
 

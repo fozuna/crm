@@ -20,6 +20,7 @@ $badgeClass = ServiceOrderStatus::badgeClass((string) ($serviceOrder['status'] ?
 $badgeLabel = ServiceOrderStatus::label((string) ($serviceOrder['status'] ?? ''));
 $toastType = trim((string) ($toastType ?? ''));
 $toastMessage = trim((string) ($toastMessage ?? ''));
+$receivables = is_array($receivables ?? null) ? $receivables : [];
 $approvalStatus = (string) ($approvalSummary['status'] ?? '');
 $canGenerateApproval = $isEdit && in_array((string) ($serviceOrder['status'] ?? ''), [ServiceOrderStatus::CONCLUIDO, ServiceOrderStatus::FATURADO], true);
 $formatDateTime = static function (?string $value): string {
@@ -270,6 +271,59 @@ $approvalActionLabel = $approvalSummary === null ? 'Gerar link' : 'Gerar novo li
             <a class="tr-btn" href="<?= View::e($base . '/ordens-servico/' . $id . '/aprovacao/comprovante') ?>" target="_blank" rel="noopener">Abrir comprovante</a>
           <?php endif; ?>
         </div>
+      </div>
+    <?php endif; ?>
+
+    <?php if ($isEdit && (int) ($serviceOrder['billable'] ?? 0) === 1): ?>
+      <div class="tr-card p-4 mt-4">
+        <div class="flex items-center justify-between gap-3">
+          <div class="font-semibold">Financeiro</div>
+          <?php if ($receivables === [] && (string) ($serviceOrder['status'] ?? '') === ServiceOrderStatus::CONCLUIDO): ?>
+            <a class="tr-btn tr-icon-btn--accent" href="<?= View::e($base . '/ordens-servico/' . $id . '/faturar') ?>">Faturar OS</a>
+          <?php elseif ($receivables !== []): ?>
+            <a class="tr-btn" href="<?= View::e($base . '/ordens-servico/' . $id . '/faturar') ?>">Ver financeiro</a>
+          <?php endif; ?>
+        </div>
+        <?php if ($receivables === []): ?>
+          <div class="tr-hint mt-3">
+            <?= (string) ($serviceOrder['status'] ?? '') === ServiceOrderStatus::CONCLUIDO
+                ? 'Nenhuma cobrança definida ainda. Use "Faturar OS" para escolher pagamento único, parcelado ou personalizado.'
+                : 'Conclua a Ordem de Serviço para poder definir a cobrança.' ?>
+          </div>
+        <?php else: ?>
+          <div class="overflow-x-auto mt-3">
+            <table class="w-full text-sm">
+              <thead class="text-slate-700">
+                <tr>
+                  <th class="text-left py-2 px-2">Parcela</th>
+                  <th class="text-left py-2 px-2">Vencimento</th>
+                  <th class="text-right py-2 px-2">Valor</th>
+                  <th class="text-right py-2 px-2">Recebido</th>
+                  <th class="text-right py-2 px-2">Saldo</th>
+                  <th class="text-left py-2 px-2">Status</th>
+                  <th class="text-right py-2 px-2">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php foreach ($receivables as $item): ?>
+                  <?php $receivableId = (int) ($item['id'] ?? 0); ?>
+                  <tr class="border-t">
+                    <td class="py-2 px-2"><?= (int) ($item['installment_number'] ?? 1) ?>/<?= (int) ($item['total_installments'] ?? 1) ?></td>
+                    <td class="py-2 px-2"><?= View::e((string) ($item['due_date'] ?? '')) ?></td>
+                    <td class="py-2 px-2 text-right">R$ <?= number_format((float) ($item['original_amount'] ?? 0), 2, ',', '.') ?></td>
+                    <td class="py-2 px-2 text-right">R$ <?= number_format((float) ($item['received_amount'] ?? 0), 2, ',', '.') ?></td>
+                    <td class="py-2 px-2 text-right">R$ <?= number_format((float) ($item['remaining_amount'] ?? 0), 2, ',', '.') ?></td>
+                    <td class="py-2 px-2"><?= View::e((string) ($item['status'] ?? '')) ?></td>
+                    <td class="py-2 px-2 text-right">
+                      <a class="tr-icon-btn" title="Visualizar" href="<?= View::e($base . '/financeiro/recebiveis/' . $receivableId) ?>"><?= UI::icon('eye') ?><span class="sr-only">Visualizar</span></a>
+                      <a class="tr-icon-btn" title="Editar" href="<?= View::e($base . '/financeiro/recebiveis/' . $receivableId . '/editar') ?>"><?= UI::icon('edit') ?><span class="sr-only">Editar</span></a>
+                    </td>
+                  </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+        <?php endif; ?>
       </div>
     <?php endif; ?>
   </div>

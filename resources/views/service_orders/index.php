@@ -6,11 +6,12 @@ use App\Services\ServiceOrderType;
 
 $title = 'Ordens de Serviço';
 $filters = is_array($filters ?? null) ? $filters : [];
-$data = is_array($data ?? null) ? $data : [];
-$rows = is_array($data['rows'] ?? null) ? $data['rows'] : [];
-$page = (int) ($data['page'] ?? 1);
-$pages = (int) ($data['pages'] ?? 1);
-$total = (int) ($data['total'] ?? 0);
+$listing = is_array($listing ?? null) ? $listing : [];
+$rows = is_array($listing['rows'] ?? null) ? $listing['rows'] : [];
+$page = (int) ($listing['page'] ?? 1);
+$pages = (int) ($listing['pages'] ?? 1);
+$total = (int) ($listing['total'] ?? 0);
+$summary = is_array($summary ?? null) ? $summary : [];
 $ok = trim((string) ($ok ?? ''));
 $error = trim((string) ($error ?? ''));
 $canManage = ($canManage ?? false) === true;
@@ -127,6 +128,33 @@ $baseParams = [
       <button class="tr-btn" type="submit">Filtrar</button>
     </div>
   </form>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4 mt-6">
+  <div class="tr-card p-5">
+    <div class="text-sm text-slate-600">Em aberto</div>
+    <div class="text-2xl font-semibold mt-2"><?= (int) ($summary['aberto'] ?? 0) ?></div>
+  </div>
+  <div class="tr-card p-5">
+    <div class="text-sm text-slate-600">Em andamento</div>
+    <div class="text-2xl font-semibold mt-2"><?= (int) ($summary['em_andamento'] ?? 0) ?></div>
+  </div>
+  <div class="tr-card p-5">
+    <div class="text-sm text-slate-600">Concluídos</div>
+    <div class="text-2xl font-semibold mt-2"><?= (int) ($summary['concluido'] ?? 0) ?></div>
+  </div>
+  <div class="tr-card p-5">
+    <div class="text-sm text-slate-600">Faturados</div>
+    <div class="text-2xl font-semibold mt-2"><?= (int) ($summary['faturado'] ?? 0) ?></div>
+  </div>
+  <div class="tr-card p-5">
+    <div class="text-sm text-slate-600">Valor faturado</div>
+    <div class="text-2xl font-semibold mt-2">R$ <?= number_format((float) ($summary['valor_faturado'] ?? 0), 2, ',', '.') ?></div>
+  </div>
+  <div class="tr-card p-5">
+    <div class="text-sm text-slate-600">Tempo médio</div>
+    <div class="text-2xl font-semibold mt-2"><?= number_format((float) ($summary['tempo_medio_horas'] ?? 0), 2, ',', '.') ?> h</div>
+  </div>
 </div>
 
 <div class="mt-6 tr-card overflow-hidden">

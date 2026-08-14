@@ -9,14 +9,18 @@ use App\Core\Response;
 use App\Core\Session;
 use App\Core\View;
 use App\Repositories\ClientRepository;
+use App\Repositories\FinancialReceivableRepository;
 use App\Repositories\ProposalBrandingRepository;
 use App\Repositories\ServiceOrderAttachmentRepository;
 use App\Repositories\ServiceOrderHistoryRepository;
 use App\Repositories\ServiceOrderRepository;
 use App\Repositories\ServiceRepository;
 use App\Repositories\UserListRepository;
+use App\Services\CompanyContext;
+use App\Services\Money;
 use App\Services\ServiceOrderAttachmentUploadService;
 use App\Services\ServiceOrderApprovalService;
+use App\Services\ServiceOrderBillingService;
 use App\Services\ServiceOrderPdfGenerator;
 use App\Services\ServiceOrderService;
 use App\Services\ServiceOrderStatus;
@@ -33,7 +37,8 @@ final class ServiceOrderController
             'csrf' => Csrf::token(),
             'base' => $request->basePath(),
             'filters' => $filters,
-            'data' => (new ServiceOrderRepository())->paginate($filters, $page, 20),
+            'listing' => (new ServiceOrderRepository())->paginate($filters, $page, 20),
+            'summary' => (new ServiceOrderRepository())->summary($filters),
             'clients' => (new ClientRepository())->options(),
             'users' => (new UserListRepository())->all(),
             'statusOptions' => ServiceOrderStatus::all(),
@@ -118,6 +123,7 @@ final class ServiceOrderController
             'attachments' => (new ServiceOrderAttachmentRepository())->listByServiceOrder($id),
             'history' => (new ServiceOrderHistoryRepository())->listByServiceOrder($id),
             'approvalSummary' => (new ServiceOrderApprovalService())->approvalSummaryForOrder($id),
+            'receivables' => $this->receivablesForOrder($order),
             'statusOptions' => ServiceOrderStatus::all(),
             'typeOptions' => ServiceOrderType::all(),
             'isEdit' => true,
@@ -157,6 +163,56 @@ final class ServiceOrderController
                 'statusOptions' => ServiceOrderStatus::all(),
                 'typeOptions' => ServiceOrderType::all(),
                 'isEdit' => true,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function billing(Request $request, array $params): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        $order = (new ServiceOrderRepository())->find($id);
+        if ($order === null) {
+            http_response_code(404);
+            echo 'Ordem de serviço não encontrada.';
+            return;
+        }
+
+        if ((int) ($order['billable'] ?? 0) !== 1) {
+            Response::redirect($request->basePath() . '/ordens-servico/' . $id . '/editar?toast=error&msg=' . rawurlencode('Esta Ordem de Serviço não possui cobrança.'));
+            return;
+        }
+        if ((string) ($order['status'] ?? '') !== ServiceOrderStatus::CONCLUIDO && $this->receivablesForOrder($order) === []) {
+            Response::redirect($request->basePath() . '/ordens-servico/' . $id . '/editar?toast=error&msg=' . rawurlencode('Conclua a Ordem de Serviço antes de definir a cobrança.'));
+            return;
+        }
+
+        View::render('service_orders/billing', [
+            'csrf' => Csrf::token(),
+            'base' => $request->basePath(),
+            'order' => $order,
+            'receivables' => $this->receivablesForOrder($order),
+            'error' => trim((string) $request->input('error', '')),
+        ]);
+    }
+
+    public function invoice(Request $request, array $params): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        $actorId = (int) Session::get('user_id', 0);
+        $post = $request->allPost();
+
+        try {
+            (new ServiceOrderBillingService())->invoice($id, $this->billingPayload($post), $actorId);
+            Response::redirect($request->basePath() . '/ordens-servico/' . $id . '/editar?toast=success&msg=' . rawurlencode('Cobrança definida e Ordem de Serviço faturada com sucesso.'));
+        } catch (\Throwable $e) {
+            $order = (new ServiceOrderRepository())->find($id);
+            View::render('service_orders/billing', [
+                'csrf' => Csrf::token(),
+                'base' => $request->basePath(),
+                'order' => $order ?? [],
+                'receivables' => $order !== null ? $this->receivablesForOrder($order) : [],
+                'formData' => $post,
                 'error' => $e->getMessage(),
             ]);
         }
@@ -286,6 +342,59 @@ final class ServiceOrderController
             'typeOptions' => ServiceOrderType::all(),
             'canManage' => $this->canManage(),
         ]);
+    }
+
+    private function receivablesForOrder(array $order): array
+    {
+        $id = (int) ($order['id'] ?? 0);
+        if ($id <= 0) {
+            return [];
+        }
+        $companyId = CompanyContext::currentCompanyId();
+        $rows = (new FinancialReceivableRepository())->listByServiceOrder($companyId, $id);
+        if ($rows !== []) {
+            return $rows;
+        }
+
+        $legacyId = (int) ($order['financial_receivable_id'] ?? 0);
+        if ($legacyId > 0) {
+            $legacy = (new FinancialReceivableRepository())->find($companyId, $legacyId);
+            return $legacy !== null ? [$legacy] : [];
+        }
+
+        return [];
+    }
+
+    private function billingPayload(array $post): array
+    {
+        $mode = trim((string) ($post['mode'] ?? ''));
+        $payload = [
+            'mode' => $mode,
+            'due_date' => trim((string) ($post['due_date'] ?? '')),
+            'description' => trim((string) ($post['description'] ?? '')),
+            'notes' => trim((string) ($post['notes'] ?? '')),
+            'installments_count' => (int) ($post['installments_count'] ?? 0),
+            'first_due_date' => trim((string) ($post['first_due_date'] ?? '')),
+            'periodicity' => trim((string) ($post['periodicity'] ?? 'mensal')),
+            'custom_interval_days' => (int) ($post['custom_interval_days'] ?? 0),
+        ];
+
+        if ($mode === ServiceOrderBillingService::MODE_PERSONALIZADO) {
+            $amounts = (array) ($post['installment_amount'] ?? []);
+            $dueDates = (array) ($post['installment_due_date'] ?? []);
+            $descriptions = (array) ($post['installment_description'] ?? []);
+            $rows = [];
+            foreach ($amounts as $index => $amount) {
+                $rows[] = [
+                    'amount' => Money::parseBRL((string) $amount),
+                    'due_date' => trim((string) ($dueDates[$index] ?? '')),
+                    'description' => trim((string) ($descriptions[$index] ?? '')),
+                ];
+            }
+            $payload['installments'] = $rows;
+        }
+
+        return $payload;
     }
 
     private function canManage(): bool

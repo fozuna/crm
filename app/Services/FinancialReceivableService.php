@@ -39,14 +39,40 @@ final class FinancialReceivableService
             $rows = $this->expandSchedule($payload, $actorId, $companyId);
             $created = [];
             foreach ($rows as $row) {
-                $data = FinancialReceivableData::fromArray($row);
-                $this->assertReceivableData($data);
-                $id = $this->receivables->create($data);
-                $created[] = $this->receivables->find($companyId, $id);
-                $this->writeAudit($companyId, $id, $actorId, $ip, 'create', null, $created[array_key_last($created)]);
+                $created[] = $this->createSingleReceivable($row, $actorId, $companyId, $ip);
             }
             return $created;
         });
+    }
+
+    /**
+     * Cria um único título já totalmente especificado pelo chamador (installment_number/
+     * total_installments/due_date/original_amount definitivos), sem passar pela expansão
+     * automática de expandSchedule(). Usado pelo faturamento de Ordens de Serviço
+     * (ServiceOrderBillingService), que calcula seu próprio cronograma de parcelas
+     * (periodicidade e parcelamento personalizado) e não deve tê-lo re-expandido — reusa
+     * a mesma validação e trilha de auditoria de create().
+     */
+    public function createStandalone(array $payload, int $actorId, ?string $ip = null): array
+    {
+        $companyId = max(1, (int) ($payload['company_id'] ?? CompanyContext::currentCompanyId()));
+        return $this->transactional(function () use ($payload, $actorId, $ip, $companyId): array {
+            return $this->createSingleReceivable(array_merge($payload, [
+                'company_id' => $companyId,
+                'created_by' => $actorId,
+                'updated_by' => $actorId,
+            ]), $actorId, $companyId, $ip);
+        });
+    }
+
+    private function createSingleReceivable(array $row, int $actorId, int $companyId, ?string $ip): array
+    {
+        $data = FinancialReceivableData::fromArray($row);
+        $this->assertReceivableData($data);
+        $id = $this->receivables->create($data);
+        $created = $this->receivables->find($companyId, $id) ?? [];
+        $this->writeAudit($companyId, $id, $actorId, $ip, 'create', null, $created);
+        return $created;
     }
 
     public function update(int $companyId, int $id, array $payload, int $actorId, ?string $ip = null): array
@@ -61,6 +87,16 @@ final class FinancialReceivableService
             'created_by' => (int) ($existing['created_by'] ?? $actorId),
         ]));
         $this->assertReceivableData($data);
+
+        $receivedAmount = round((float) ($existing['received_amount'] ?? 0), 2);
+        $newGross = round($data->originalAmount + $data->interestAmount + $data->fineAmount - $data->discountAmount, 2);
+        if ($receivedAmount > 0.0001 && $newGross < $receivedAmount - 0.0001) {
+            throw new \RuntimeException(sprintf(
+                'O novo valor (R$ %s) não pode ser menor que o valor já recebido (R$ %s).',
+                number_format($newGross, 2, ',', '.'),
+                number_format($receivedAmount, 2, ',', '.')
+            ));
+        }
 
         return $this->transactional(function () use ($companyId, $id, $data, $existing, $actorId, $ip): array {
             $this->receivables->update($id, $data, (float) ($existing['received_amount'] ?? 0));

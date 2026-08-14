@@ -59,6 +59,55 @@ final class ServiceOrderRepository implements ServiceOrderRepositoryContract
         ];
     }
 
+    /**
+     * Agregados (contagens por status, valor faturado e tempo médio) sobre o
+     * conjunto completo filtrado — independente de paginação — para alimentar
+     * os indicadores da tela principal.
+     */
+    public function summary(array $filters): array
+    {
+        [$baseSql, $params] = $this->baseFromWhere($filters);
+
+        $totals = [
+            'aberto' => 0,
+            'em_andamento' => 0,
+            'aguardando_cliente' => 0,
+            'aguardando_terceiros' => 0,
+            'concluido' => 0,
+            'cancelado' => 0,
+            'faturado' => 0,
+            'valor_faturado' => 0.0,
+            'tempo_medio_horas' => 0.0,
+        ];
+
+        $countStmt = DB::pdo()->prepare('SELECT so.status, COUNT(*) AS qty' . $baseSql . ' GROUP BY so.status');
+        $this->bindAll($countStmt, $params);
+        $countStmt->execute();
+        foreach ($countStmt->fetchAll() as $row) {
+            $status = (string) ($row['status'] ?? '');
+            if (array_key_exists($status, $totals)) {
+                $totals[$status] = (int) $row['qty'];
+            }
+        }
+
+        $aggSql = "SELECT
+                        SUM(CASE WHEN so.status = 'faturado' THEN so.final_amount ELSE 0 END) AS valor_faturado,
+                        AVG(CASE WHEN so.completed_at IS NOT NULL AND so.completed_at >= so.opened_at
+                                 THEN TIMESTAMPDIFF(SECOND, so.opened_at, so.completed_at) END) AS avg_seconds"
+                   . $baseSql;
+        $aggStmt = DB::pdo()->prepare($aggSql);
+        $this->bindAll($aggStmt, $params);
+        $aggStmt->execute();
+        $agg = $aggStmt->fetch();
+        if (is_array($agg)) {
+            $totals['valor_faturado'] = (float) ($agg['valor_faturado'] ?? 0);
+            $avgSeconds = $agg['avg_seconds'] ?? null;
+            $totals['tempo_medio_horas'] = $avgSeconds !== null ? round(((float) $avgSeconds) / 3600, 2) : 0.0;
+        }
+
+        return $totals;
+    }
+
     public function find(int $id): ?array
     {
         $sql = "SELECT so.*,

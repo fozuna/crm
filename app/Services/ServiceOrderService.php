@@ -9,7 +9,7 @@ use App\Contracts\ServiceOrderHistoryRepositoryContract;
 use App\Contracts\ServiceOrderRepositoryContract;
 use App\Core\DB;
 use App\Repositories\AuditLogRepository;
-use App\Repositories\FinancialCatalogRepository;
+use App\Repositories\FinancialReceivableRepository;
 use App\Repositories\ServiceOrderAttachmentRepository;
 use App\Repositories\ServiceOrderHistoryRepository;
 use App\Repositories\ServiceOrderRepository;
@@ -36,13 +36,6 @@ final class ServiceOrderService
             $current = $this->requireOrder($id);
             $this->historyRepo()->create($id, 'create', $actorId, null, null, null, 'Ordem de serviço criada.', ['after' => $current]);
 
-            $receivableId = $this->syncReceivable($current, $data, $actorId);
-            if ($receivableId !== null) {
-                $this->orderRepo()->attachFinancialReceivable($id, $receivableId, $actorId);
-                $current = $this->requireOrder($id);
-                $this->historyRepo()->create($id, 'financial_create', $actorId, 'financial_receivable_id', null, $receivableId, 'Lançamento financeiro criado automaticamente.');
-            }
-
             $this->auditRepo()->create('service_order', $id, 'create', $actorId, ['after' => $current]);
             $pdo->commit();
             $this->triggerApprovalWorkflow([], $current, $actorId);
@@ -65,14 +58,6 @@ final class ServiceOrderService
         try {
             $this->orderRepo()->update($id, $data, $actorId);
             $this->recordDiffHistory($existing, $data, $actorId);
-
-            $updated = $this->requireOrder($id);
-            $receivableId = $this->syncReceivable($updated, $data, $actorId);
-            if ($data['billable'] === 0 && (int) ($existing['financial_receivable_id'] ?? 0) > 0) {
-                $this->historyRepo()->create($id, 'financial_delete', $actorId, 'financial_receivable_id', $existing['financial_receivable_id'], null, 'Lançamento financeiro desvinculado.');
-            } elseif ($receivableId !== null && (int) ($existing['financial_receivable_id'] ?? 0) !== $receivableId) {
-                $this->historyRepo()->create($id, 'financial_update', $actorId, 'financial_receivable_id', $existing['financial_receivable_id'] ?? null, $receivableId, 'Lançamento financeiro sincronizado.');
-            }
 
             $updated = $this->requireOrder($id);
             $this->auditRepo()->create('service_order', $id, 'update', $actorId, [
@@ -98,6 +83,13 @@ final class ServiceOrderService
         }
         if ((string) ($existing['status'] ?? '') === $status) {
             return $existing;
+        }
+        if ($status === ServiceOrderStatus::FATURADO
+            && (int) ($existing['billable'] ?? 0) === 1
+            && (int) ($existing['financial_receivable_id'] ?? 0) === 0
+            && (new FinancialReceivableRepository())->listByServiceOrder(CompanyContext::currentCompanyId(), $id) === []
+        ) {
+            throw new \RuntimeException('Utilize o fluxo de faturamento para definir a cobrança antes de marcar como Faturado.');
         }
 
         $completedAt = in_array($status, [ServiceOrderStatus::CONCLUIDO, ServiceOrderStatus::FATURADO], true)
@@ -249,70 +241,6 @@ final class ServiceOrderService
             'total' => $total,
             'limit' => $limit,
             'truncated' => $total > count($rows),
-        ];
-    }
-
-    private function syncReceivable(array $current, array $data, int $actorId): ?int
-    {
-        $existingReceivableId = (int) ($current['financial_receivable_id'] ?? 0);
-        if ((int) ($data['billable'] ?? 0) !== 1) {
-            if ($existingReceivableId > 0) {
-                (new FinancialReceivableService())->delete(CompanyContext::currentCompanyId(), $existingReceivableId, $actorId);
-                $this->orderRepo()->attachFinancialReceivable((int) $current['id'], null, $actorId);
-            }
-            return null;
-        }
-
-        $payload = $this->receivablePayload($current, $data, $actorId);
-        $service = new FinancialReceivableService();
-        if ($existingReceivableId > 0) {
-            $service->update(CompanyContext::currentCompanyId(), $existingReceivableId, $payload, $actorId);
-            return $existingReceivableId;
-        }
-
-        $created = $service->create($payload, $actorId);
-        $first = is_array($created[0] ?? null) ? $created[0] : null;
-        return (int) ($first['id'] ?? 0);
-    }
-
-    private function receivablePayload(array $current, array $data, int $actorId): array
-    {
-        $companyId = CompanyContext::currentCompanyId();
-        $catalog = new FinancialCatalogRepository();
-        $openedAt = substr((string) ($data['opened_at'] ?? $current['opened_at'] ?? date('Y-m-d')), 0, 10);
-        $dueAt = substr((string) ($data['due_at'] ?? $current['due_at'] ?? $openedAt), 0, 10);
-
-        return [
-            'company_id' => $companyId,
-            'project_id' => null,
-            'client_id' => (int) ($data['client_id'] ?? $current['client_id'] ?? 0),
-            'contract_id' => null,
-            'source_installment_id' => null,
-            'installment_number' => 1,
-            'total_installments' => 1,
-            'title' => 'OS ' . (string) ($current['numero_os'] ?? '') . ' - ' . (string) ($data['service_name'] ?? $current['service_name'] ?? ''),
-            'description' => (new ServiceOrderRichText())->toPlainText((string) ($data['request_description'] ?? $current['request_description'] ?? '')),
-            'original_amount' => round((float) ($data['base_amount'] ?? 0) + (float) ($data['surcharge_amount'] ?? 0), 2),
-            'discount_amount' => round((float) ($data['discount_amount'] ?? 0), 2),
-            'interest_amount' => 0,
-            'fine_amount' => 0,
-            'due_date' => $dueAt !== '' ? $dueAt : date('Y-m-d'),
-            'issue_date' => $openedAt !== '' ? $openedAt : date('Y-m-d'),
-            'payment_date' => null,
-            'competence_date' => $openedAt !== '' ? $openedAt : date('Y-m-d'),
-            'status' => 'pending',
-            'payment_method' => '',
-            'payment_channel' => '',
-            'bank_account_id' => null,
-            'category_id' => $catalog->findCategoryIdByName($companyId, 'Serviços avulsos'),
-            'cost_center_id' => $catalog->findCostCenterIdByName($companyId, 'Serviços Avulsos'),
-            'invoice_number' => null,
-            'external_reference' => (string) ($current['numero_os'] ?? ''),
-            'recurrence_group' => null,
-            'recurrence_interval_months' => 0,
-            'notes' => 'Gerado automaticamente pela ordem de serviço ' . (string) ($current['numero_os'] ?? ''),
-            'created_by' => $actorId,
-            'updated_by' => $actorId,
         ];
     }
 
