@@ -21,25 +21,6 @@ $badgeLabel = ServiceOrderStatus::label((string) ($serviceOrder['status'] ?? '')
 $toastType = trim((string) ($toastType ?? ''));
 $toastMessage = trim((string) ($toastMessage ?? ''));
 $receivables = is_array($receivables ?? null) ? $receivables : [];
-$approvalStatus = (string) ($approvalSummary['status'] ?? '');
-$canGenerateApproval = $isEdit && in_array((string) ($serviceOrder['status'] ?? ''), [ServiceOrderStatus::CONCLUIDO, ServiceOrderStatus::FATURADO], true);
-$formatDateTime = static function (?string $value): string {
-    $raw = trim((string) $value);
-    if ($raw === '') {
-        return 'Nao registrado';
-    }
-    $timestamp = strtotime($raw);
-    return $timestamp === false ? $raw : date('d/m/Y H:i', $timestamp);
-};
-$approvalStatusMap = [
-    'pendente' => ['label' => 'Pendente', 'class' => 'border-amber-200 bg-amber-50 text-amber-700'],
-    'aprovada' => ['label' => 'Aprovada', 'class' => 'border-emerald-200 bg-emerald-50 text-emerald-700'],
-    'ajustes_solicitados' => ['label' => 'Ajustes solicitados', 'class' => 'border-orange-200 bg-orange-50 text-orange-700'],
-    'expirada' => ['label' => 'Expirada', 'class' => 'border-slate-200 bg-slate-100 text-slate-700'],
-    'revogada' => ['label' => 'Revogada', 'class' => 'border-rose-200 bg-rose-50 text-rose-700'],
-];
-$approvalBadge = $approvalStatusMap[$approvalStatus] ?? ['label' => 'Nao gerado', 'class' => 'border-slate-200 bg-slate-100 text-slate-700'];
-$approvalActionLabel = $approvalSummary === null ? 'Gerar link' : 'Gerar novo link';
 ?>
 
 <div class="flex items-start justify-between gap-4">
@@ -420,80 +401,9 @@ $approvalActionLabel = $approvalSummary === null ? 'Gerar link' : 'Gerar novo li
     <?php endif; ?>
 
     <div class="tr-card p-6">
-    <?php if ($isEdit): ?>
-      <div class="tr-card p-6">
-        <div class="flex items-center justify-between gap-3">
-          <div class="font-semibold">Aprovação digital</div>
-          <span class="inline-flex items-center rounded-full border px-2 py-1 text-xs font-semibold <?= View::e($approvalBadge['class']) ?>"><?= View::e($approvalBadge['label']) ?></span>
-        </div>
-
-        <?php if ($approvalSummary !== null): ?>
-          <div class="grid grid-cols-1 gap-3 mt-4 text-sm">
-            <div>
-              <div class="text-xs font-semibold text-slate-600">Validade do link</div>
-              <div class="mt-1"><?= View::e($formatDateTime((string) ($approvalSummary['token_expires_at'] ?? ''))) ?></div>
-            </div>
-            <div>
-              <div class="text-xs font-semibold text-slate-600">Primeiro acesso</div>
-              <div class="mt-1"><?= View::e($formatDateTime((string) ($approvalSummary['first_access_at'] ?? ''))) ?></div>
-            </div>
-            <div>
-              <div class="text-xs font-semibold text-slate-600">Decisão do cliente</div>
-              <div class="mt-1"><?= View::e($formatDateTime((string) ($approvalSummary['decision_at'] ?? ''))) ?></div>
-            </div>
-            <div>
-              <div class="text-xs font-semibold text-slate-600">Solicitante</div>
-              <div class="mt-1"><?= View::e((string) (($approvalSummary['requester_name'] ?? '') !== '' ? $approvalSummary['requester_name'] : 'Nao informado')) ?></div>
-            </div>
-            <div>
-              <div class="text-xs font-semibold text-slate-600">E-mail do cliente</div>
-              <div class="mt-1"><?= View::e((string) (($approvalSummary['requester_email'] ?? $approvalSummary['client_billing_email'] ?? $approvalSummary['client_email'] ?? '') !== '' ? ($approvalSummary['requester_email'] ?? $approvalSummary['client_billing_email'] ?? $approvalSummary['client_email']) : 'Nao informado')) ?></div>
-            </div>
-            <div>
-              <div class="text-xs font-semibold text-slate-600">Disparo por e-mail</div>
-              <div class="mt-1"><?= View::e($formatDateTime((string) ($approvalSummary['email_sent_at'] ?? ''))) ?></div>
-            </div>
-          </div>
-
-          <?php if (trim((string) ($approvalSummary['justification'] ?? '')) !== ''): ?>
-            <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-              <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Justificativa</div>
-              <div class="mt-2 whitespace-pre-line"><?= View::e((string) $approvalSummary['justification']) ?></div>
-            </div>
-          <?php endif; ?>
-        <?php else: ?>
-          <div class="mt-4 text-sm text-slate-600">
-            Nenhum link de aprovação foi gerado para esta ordem de serviço.
-          </div>
-        <?php endif; ?>
-
-        <div class="mt-4 flex flex-wrap gap-2">
-          <?php if ($canGenerateApproval): ?>
-            <form method="post" action="<?= View::e($base . '/ordens-servico/' . $id . '/aprovacao/gerar') ?>" onsubmit="return window.confirm('Gerar um novo link de aprovação para o cliente?');">
-              <input type="hidden" name="_csrf" value="<?= View::e($csrf) ?>">
-              <button class="tr-btn tr-icon-btn--accent" type="submit"><?= View::e($approvalActionLabel) ?></button>
-            </form>
-          <?php else: ?>
-            <div class="text-xs text-slate-500">
-              O link externo so pode ser gerado quando a OS estiver concluida ou faturada.
-            </div>
-          <?php endif; ?>
-
-          <?php if ($approvalSummary !== null && trim((string) ($approvalSummary['proof_pdf_path'] ?? '')) !== ''): ?>
-            <a class="tr-btn" href="<?= View::e($base . '/ordens-servico/' . $id . '/aprovacao/comprovante') ?>" target="_blank" rel="noopener">Comprovante PDF</a>
-          <?php endif; ?>
-        </div>
-
-        <div class="tr-hint mt-3">
-          O token nao fica armazenado em texto puro; para reenviar ao cliente, gere um novo link.
-        </div>
-      </div>
-    <?php endif; ?>
-
       <div class="flex items-center justify-between">
         <div class="font-semibold">Anexos</div>
         <span class="text-sm text-slate-600"><?= count($attachments) ?> total</span>
-      </div>
       </div>
       <div class="mt-4 space-y-3">
         <?php foreach ($attachments as $attachment): ?>

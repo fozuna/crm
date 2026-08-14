@@ -136,7 +136,22 @@ final class ServiceOrderController
     public function show(Request $request, array $params): void
     {
         $id = (int) ($params['id'] ?? 0);
-        Response::redirect($request->basePath() . '/ordens-servico/' . $id . '/editar');
+        $order = (new ServiceOrderRepository())->find($id);
+        if ($order === null) {
+            http_response_code(404);
+            echo 'Ordem de serviço não encontrada.';
+            return;
+        }
+
+        View::render('service_orders/show', [
+            'csrf' => Csrf::token(),
+            'base' => $request->basePath(),
+            'serviceOrder' => $order,
+            'attachments' => (new ServiceOrderAttachmentRepository())->listByServiceOrder($id),
+            'history' => (new ServiceOrderHistoryRepository())->listByServiceOrder($id),
+            'receivables' => $this->receivablesForOrder($order),
+            'canManage' => $this->canManage(),
+        ]);
     }
 
     public function update(Request $request, array $params): void

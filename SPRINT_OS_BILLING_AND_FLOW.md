@@ -149,12 +149,78 @@ Aplicado no ambiente de desenvolvimento local via `php tools/db_sync.php --env=d
 - `ServiceController::index()`/`services/index.php` têm o mesmo bug de colisão de chave `'data'` documentado em `CRM_AUDIT.md` e não corrigido (fora do escopo desta sprint, que era especificamente sobre Ordens de Serviço).
 - Nenhuma integração de pagamento (PIX/boleto/NF) foi implementada — explicitamente fora de escopo.
 
-## 18. Resultado final
+## 18. Correção pós-deploy (2026-08-14) — layout quebrado em `/editar` e "Visualizar" abrindo "Editar"
+
+Depois do deploy desta sprint em produção (e após aplicar a migration de `service_order_id`, ver seção 13), dois problemas foram reportados na tela de OS. Ambos foram investigados com evidência real (não suposição) antes de qualquer alteração.
+
+### Causa raiz 1 — `TypeError` em `form.php:427` quebrando o layout inteiro
+
+Confirmado via `storage/logs/app.log` de produção:
+
+```
+TypeError: Cannot access offset of type string on string in
+.../resources/views/service_orders/form.php:427
+```
+
+`resources/views/service_orders/form.php` tinha **dois cards "Aprovação digital" duplicados** compartilhando a variável `$approvalBadge` com tipos incompatíveis:
+- Linha 41 (setup): `$approvalBadge` era inicializado como **array** (`['label' => ..., 'class' => ...]`), mas nunca mais lido nesse formato.
+- Linha ~362 (card "Aprovação digital do cliente", o único que sobrevive hoje): `$approvalBadge` era **reatribuído para string** via `match()` e usado corretamente logo em seguida.
+- Linha 427 (um **segundo** card "Aprovação digital", morto/duplicado): tentava ler `$approvalBadge['class']`/`$approvalBadge['label']` como se ainda fosse array — mas por essa altura do arquivo a variável já era a string do card anterior, gerando o `TypeError`.
+
+`git blame`/`git log -S` confirmam que esse segundo card foi introduzido pelo commit `2eacb3e` (2026-07-08), mais de um mês antes desta sprint, e nunca removido — **não é regressão da sprint de faturamento**, apenas nunca havia sido exercitado antes por só quebrar quando a OS já possui um link de aprovação gerado (`$approvalSummary !== null`).
+
+**Por que isso derrubava o layout inteiro (sidebar, Tailwind, tudo)**: `App\Core\View::render()` faz `ob_start()`, `require $viewFile` (a view) e só depois `require $layoutFile` (o layout com `<head>`/sidebar). Como a exceção interrompe o `require` da view **dentro** desse buffer, o `layout.php` nunca chega a ser aplicado — só o HTML parcial que a view já tinha ecoado antes do crash (título, subtítulo, badge "Faturado") aparece na tela, sem nenhum CSS. Os ícones de `UI::icon()` (`<svg viewBox="0 0 24 24">` sem `width`/`height`, dependentes só da classe Tailwind `w-5 h-5`) caem no tamanho intrínseco padrão do navegador — daí o ícone gigante e roxo (cor herdada de link `:visited`) visto no print.
+
+**Reprodução real, não só análise estática**: subimos um servidor local (`php -S` via `dev-router.php`) contra o código exatamente como estava (commit da sprint), criamos uma OS descartável faturável com um recebível legado vinculado e geramos um link de aprovação real via `ServiceOrderApprovalService::generateForServiceOrder()` — reproduzindo o `TypeError` de forma consistente antes da correção, e confirmando página saudável (55KB, sem "Erro interno") depois dela. Dados de teste e sessão fake removidos ao final.
+
+**Correção**: removido o card duplicado/morto inteiro, junto das variáveis que só ele usava (`$approvalStatusMap`, `$formatDateTime`, `$canGenerateApproval`, `$approvalActionLabel` — todas mortas depois da remoção). O card "Aprovação digital do cliente" (o correto, já funcional) não foi tocado. A remoção também corrigiu um aninhamento de `<div>` quebrado que a inserção do card morto havia introduzido dentro do card "Anexos".
+
+### Causa raiz 2 — "Visualizar" sempre abria "Editar"
+
+`ServiceOrderController::show()` existe desde o commit `aa221ea` (2026-07-01) e sempre foi um redirect puro para `edit()`:
+
+```php
+public function show(Request $request, array $params): void
+{
+    $id = (int) ($params['id'] ?? 0);
+    Response::redirect($request->basePath() . '/ordens-servico/' . $id . '/editar');
+}
+```
+
+**Nunca existiu uma tela de detalhes de verdade** — não é regressão desta sprint nem da anterior. O link "Visualizar" em `_actions.php` e a rota `GET /ordens-servico/{id}` já estavam corretos; só faltava a implementação real. `Router::match()` usa regex ancorada (`^...$`) com `{id}` mapeado para `[^/]+` (não casa `/`), então não há conflito entre `/ordens-servico/{id}` e `/ordens-servico/{id}/editar` — confirmado por leitura direta do roteador, descartando a hipótese de colisão de rotas.
+
+**Correção**: `show()` agora carrega a OS (404 se não existir), seus anexos, histórico e parcelas financeiras, e renderiza a nova `resources/views/service_orders/show.php` — cabeçalho (número, serviço, badge de status, ações Editar/PDF/Financeiro/Voltar), informações gerais, seção Financeiro (mesma tabela de parcelas do `form.php`, ou "Cobrança ainda não gerada"/"não possui cobrança"), anexos (miniatura para imagens, ícone em tamanho normal — não gigante — para documentos, com nome/extensão/tamanho/download) e histórico em timeline. Nenhuma rota mudou.
+
+### Arquivos alterados nesta correção
+
+- `resources/views/service_orders/form.php` — remoção do card "Aprovação digital" duplicado/morto e das variáveis órfãs.
+- `app/Controllers/ServiceOrderController.php` — `show()` deixou de redirecionar; agora carrega dados e renderiza a view de detalhes.
+- `resources/views/service_orders/show.php` (novo) — tela de detalhes.
+- `tests/service_order_layout_module.php` (novo) — dispara `/ordens-servico/{id}/editar` e `/ordens-servico/{id}` via `Router::dispatch()` real, reproduzindo o cenário exato de produção (OS faturável + recebível + aprovação gerada), e cobre OS inexistente em ambas as rotas.
+- `tests/run.php` — registra o novo arquivo de teste.
+
+### Testes
+
+`php tests/run.php`: **273 OK, 0 FAIL** (era 258 antes desta correção; 15 novas verificações, sendo 14 do novo arquivo + o registro em `run.php`).
+
+### Validação manual
+
+Reproduzido e verificado via requisição HTTP real em processo local (sessão autenticada simulada, sem alterar dados reais — OS e link de aprovação de teste removidos ao final):
+- `/ordens-servico/{id}/editar` de uma OS faturável com aprovação gerada: antes da correção, `TypeError` + layout quebrado; depois, página completa (57KB), sem "Erro interno", um único card de aprovação.
+- `/ordens-servico/{id}` (Visualizar): antes, redirecionava para `/editar`; depois, renderiza a tela de detalhes de verdade (sem `<form>` de edição, com as seções Informações gerais/Financeiro/Anexos/Histórico).
+- `/ordens-servico/999999999` e `/ordens-servico/999999999/editar`: 404 tratado (`"Ordem de serviço não encontrada."`) em ambas.
+
+### Confirmação
+
+Nenhum commit, push ou deploy foi realizado automaticamente nesta correção.
+
+## 19. Resultado final
 
 - OS pode ser faturada em pagamento único, parcelado (com arredondamento correto) ou personalizado (com validação de soma).
 - Parcelas são criadas em `financial_accounts_receivable` (fonte oficial), vinculadas à OS e ao cliente.
 - Duplicidade de faturamento é bloqueada.
 - Edição e baixa de parcela (total/parcial) continuam funcionando via as telas financeiras já existentes, agora com a salvaguarda de valor mínimo.
 - `/ordens-servico` exibe as OS reais, com indicadores e paginação corretos.
-- Suíte de testes: 258 OK, 0 FAIL.
+- `/ordens-servico/{id}` (Visualizar) exibe uma tela de detalhes de verdade, sem redirecionar para a edição; `/ordens-servico/{id}/editar` não quebra mais o layout para OS faturáveis com aprovação gerada (seção 18).
+- Suíte de testes: 273 OK, 0 FAIL.
 - Nenhum commit, push ou deploy foi realizado automaticamente.
