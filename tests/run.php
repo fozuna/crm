@@ -106,6 +106,9 @@ $totalFailures += (int) $serviceOrderLayoutFailures;
 $serviceOrderReparcelFailures = require __DIR__ . '/service_order_reparcel_module.php';
 $totalFailures += (int) $serviceOrderReparcelFailures;
 
+$serviceOrderValueSourceFailures = require __DIR__ . '/service_order_billing_value_source_module.php';
+$totalFailures += (int) $serviceOrderValueSourceFailures;
+
 $financeReportFailures = require __DIR__ . '/finance_report_repository.php';
 $totalFailures += (int) $financeReportFailures;
 

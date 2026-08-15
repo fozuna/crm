@@ -279,7 +279,84 @@ A OS-000002 real de produção tem um título legado (id=3) criado pelo código 
 
 Nenhum commit, push ou deploy foi realizado automaticamente nesta correção.
 
-## 20. Resultado final
+## 20. Auditoria "hora técnica × valor final" — confirmação de que o código já estava correto, endurecimento de testes e plano de dados históricos
+
+Reportado: OS com valor final R$ 480,00 e hora técnica (`base_amount`) R$ 120,00 gerando um recebível de R$ 120,00. Antes de tocar em qualquer código, foi feita uma nova auditoria completa e independente (não presumindo que a correção da seção 19 não tivesse funcionado).
+
+### Veredito da auditoria
+
+**O código atual (HEAD, a partir do commit `2212b4e`) já está correto — este não é um defeito vivo.** Confirmado por:
+- Leitura de `ServiceOrderBillingService::invoice()`/`reparcel()`/`createInstallmentPlan()`/`buildInstallments()` (e todas as variantes único/parcelado/personalizado): a única fonte do valor é `$order['final_amount']`; nenhuma linha do arquivo referencia `base_amount`, `surcharge_amount`, `hourly_rate` ou `services.default_price`.
+- `git log` completo de `ServiceOrderService.php`/`ServiceOrderBillingService.php`: nenhum commit após `0ac8bd8`/`2212b4e` reintroduziu o cálculo antigo.
+- **Consulta somente-leitura real contra o banco de desenvolvimento** (nenhuma escrita): todo `financial_accounts_receivable` com `service_order_id` preenchido (ou seja, criado pelo fluxo atual) está zerado — a tabela ainda não tem nenhum título gerado pelo código novo neste ambiente — e os únicos 3 títulos divergentes encontrados (OS-000002/3/4) são vinculados exclusivamente pelo campo legado `financial_receivable_id`, criados em julho/2026, semanas antes de qualquer uma das duas correções (14/08/2026). Ou seja: **o sintoma relatado é a mesma classe de dado legado já documentada na seção 19, agora encontrada em outras OS, não uma regressão do código.**
+
+### Campos (confirmação final)
+
+- Hora técnica de referência: `servicos_avulsos.base_amount` (`DECIMAL(12,2)`) — nunca usada para faturar.
+- Valor final faturável: `servicos_avulsos.final_amount` (`DECIMAL(12,2)`) — única fonte, calculado em `ServiceOrderValidator::calculateFinalAmount()` como `estimated_hours × base_amount − discount_amount + surcharge_amount`.
+- Nenhum campo `origin_type`/`origin_id` genérico existe ou foi necessário — a origem "Ordem de Serviço" já é identificável via `financial_accounts_receivable.service_order_id` (criado na sprint anterior) + `external_reference = numero_os`.
+
+### Testes adicionados (endurecimento, não correção)
+
+Novo `tests/service_order_billing_value_source_module.php` (14 verificações), cobrindo exatamente os casos exigidos:
+- OS de R$ 480,00 (hora técnica R$ 120,00) em pagamento único → título de R$ 480,00; recebimento parcial de R$ 180 → saldo R$ 300; quitação do restante → saldo R$ 0 e status `paid`.
+- OS de R$ 550,00 (hora técnica R$ 120,00, propositalmente **não múltiplo** de 550, para descartar coincidência matemática) em 2 parcelas → 2 × R$ 275,00.
+- OS, Financeiro e Relatório Financeiro (mesma fonte do Dashboard) exibindo o mesmo valor para o mesmo título.
+- Alterar `base_amount`/`estimated_hours` da OS **depois** de faturada não retroage sobre o título já criado.
+- **Trava estrutural anti-regressão**: o teste lê o código-fonte de `ServiceOrderBillingService.php` e falha se as strings `base_amount`, `hourly_rate`, `default_price` ou `$order['surcharge_amount']` aparecerem no arquivo, e falha se `$order['final_amount']` deixar de aparecer — qualquer regressão futura que volte a ler a hora técnica quebra a suíte imediatamente.
+
+`php tests/run.php`: **314 OK, 0 FAIL** (14 novas verificações desta auditoria, além das 300 já existentes).
+
+### Consulta de diagnóstico (somente leitura, validada, não altera dados)
+
+```sql
+SELECT
+  so.id AS os_id,
+  so.numero_os,
+  so.final_amount AS valor_os,
+  COALESCE(agg.total_titulo, legacy.original_amount, 0) AS financeiro_gerado,
+  ROUND(so.final_amount - COALESCE(agg.total_titulo, legacy.original_amount, 0), 2) AS diferenca,
+  COALESCE(agg.qtd_titulos, IF(legacy.id IS NOT NULL, 1, 0)) AS titulos_vinculados,
+  COALESCE(agg.total_recebido, legacy.received_amount, 0) AS total_recebido
+FROM servicos_avulsos so
+LEFT JOIN (
+  SELECT service_order_id,
+         SUM(original_amount) AS total_titulo,
+         SUM(received_amount) AS total_recebido,
+         COUNT(*) AS qtd_titulos
+  FROM financial_accounts_receivable
+  WHERE deleted_at IS NULL AND service_order_id IS NOT NULL
+  GROUP BY service_order_id
+) agg ON agg.service_order_id = so.id
+LEFT JOIN financial_accounts_receivable legacy
+  ON legacy.id = so.financial_receivable_id AND legacy.deleted_at IS NULL
+WHERE so.billable = 1
+  AND so.deleted_at IS NULL
+  AND (agg.total_titulo IS NOT NULL OR legacy.id IS NOT NULL)
+  AND ABS(so.final_amount - COALESCE(agg.total_titulo, legacy.original_amount, 0)) > 0.01
+ORDER BY diferenca DESC;
+```
+
+Reproduz a mesma regra de vínculo já usada pelo próprio sistema (`ServiceOrderController::receivablesForOrder()`): título(s) via `service_order_id` quando existirem, senão o vínculo legado `financial_receivable_id`. Só lista OS que já têm alguma cobrança gerada (não sinaliza OS ainda não faturadas). Executada no ambiente de desenvolvimento local (leitura, sem alterações): **3 OS divergentes encontradas** (OS-000002, OS-000003, OS-000004 — os mesmos 3 títulos legados de julho/2026), todas com `total_recebido = 0.00`.
+
+### Plano para correção dos registros históricos (documentado, NÃO executado)
+
+Distinção obrigatória por título:
+
+**Sem nenhum recebimento** (é o caso das 3 OS encontradas no ambiente local) — caminho já pronto e seguro: um administrador abre `/ordens-servico/{id}/faturar` para a OS sinalizada pela consulta acima; como nenhum título vinculado tem `received_amount > 0`, o botão **"Reparcelar cobrança"** (seção 19) fica disponível — o título antigo incorreto é cancelado (soft delete, auditado) e a composição correta (único ou parcelado, à escolha do operador) é criada a partir de `final_amount`. Nenhum código novo é necessário; é literalmente o cenário para o qual a funcionalidade foi construída.
+
+**Com algum recebimento** (nenhum caso encontrado localmente, mas pode existir em produção) — **não usar reparcelamento automático** (ele já bloqueia essa situação por design). Procedimento manual recomendado, sob supervisão financeira: manter o título original intocado (preserva o histórico do recebimento já feito); lançar um título complementar, pela tela `/financeiro/recebiveis/novo`, com a diferença (`valor_final_da_OS − valor_do_título_original`), descrição explícita referenciando a correção e a OS de origem, vinculado ao mesmo `service_order_id`/cliente. Decisão registrada aqui como recomendação; execução fica a critério do financeiro, título a título, nunca em lote automático.
+
+### Riscos
+
+- A consulta de diagnóstico não é executada automaticamente em nenhum fluxo do sistema (nem em testes, nem em rotina agendada) — é uma consulta avulsa, para uso manual do administrador via phpMyAdmin/SSH.
+- Nenhum dado histórico foi alterado, cancelado ou recriado por esta auditoria.
+
+### Confirmação
+
+Nenhum commit, push, deploy ou alteração automática de dados históricos foi realizado nesta auditoria.
+
+## 21. Resultado final
 
 - OS pode ser faturada em pagamento único, parcelado (com arredondamento correto) ou personalizado (com validação de soma).
 - Parcelas são criadas em `financial_accounts_receivable` (fonte oficial), vinculadas à OS e ao cliente.
@@ -288,5 +365,6 @@ Nenhum commit, push ou deploy foi realizado automaticamente nesta correção.
 - `/ordens-servico` exibe as OS reais, com indicadores e paginação corretos.
 - `/ordens-servico/{id}` (Visualizar) exibe uma tela de detalhes de verdade, sem redirecionar para a edição; `/ordens-servico/{id}/editar` não quebra mais o layout para OS faturáveis com aprovação gerada (seção 18).
 - O valor final da OS (nunca `base_amount`) é a única fonte do faturamento; uma OS de R$ 1.500,00 em 3 parcelas gera exatamente 3 títulos físicos de R$ 500,00; `total_installments` sempre corresponde à quantidade real de títulos e não pode mais ser editado livremente para um título de OS; saldo/desconto ficaram visíveis na interface; reparcelamento seguro (bloqueado quando há recebimento) permite corrigir uma cobrança incorreta (seção 19).
-- Suíte de testes: 300 OK, 0 FAIL.
-- Nenhum commit, push ou deploy foi realizado automaticamente.
+- Auditoria independente confirmou que a regra "valor final, nunca hora técnica" já estava corretamente implementada em todo o código atual (nenhuma regressão); os casos ainda relatados são dados legados de julho/2026, identificáveis pela consulta de diagnóstico da seção 20 e corrigíveis pelo próprio "Reparcelar cobrança" quando sem recebimento; trava estrutural nos testes impede regressão futura (seção 20).
+- Suíte de testes: 314 OK, 0 FAIL.
+- Nenhum commit, push, deploy ou alteração automática de dados históricos foi realizado.

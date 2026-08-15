@@ -672,6 +672,10 @@ Uma OS de R$ 1.500,00 exibia, no bloco Financeiro, um título de R$ 120,00 marca
 
 Nova funcionalidade: `ServiceOrderBillingService::reparcel()`, que permite corrigir/substituir a cobrança de uma OS já faturada, bloqueado com segurança sempre que qualquer título vinculado já tiver recebimento.
 
+### Atualização 2026-08-14 (mesmo dia) — nova denúncia investigada e descartada como regressão
+
+Reportado um novo caso (OS com valor final R$ 480,00 gerando recebível de R$ 120,00 = a hora técnica). Auditoria independente, incluindo consulta somente-leitura real contra o banco de desenvolvimento, confirmou que **não é uma regressão**: todo `financial_accounts_receivable.service_order_id` (preenchido apenas pelo código corrigido) está vazio no ambiente testado, e os títulos divergentes encontrados (3 no total — OS-000002/3/4) são vinculados exclusivamente pelo campo legado `financial_receivable_id`, criados em julho/2026, semanas antes das correções de 14/08/2026. Mesma classe de dado legado já descrita acima, apenas em outras OS. Ver `SPRINT_OS_BILLING_AND_FLOW.md`, seção 20, para a consulta de diagnóstico validada e o plano (não executado) de correção dos registros históricos. Adicionada trava estrutural em `tests/service_order_billing_value_source_module.php` que falha a suíte caso `ServiceOrderBillingService.php` volte a referenciar `base_amount`/`hourly_rate`/`default_price`.
+
 ## Confirmação de conclusão
 
 - Fluxo financeiro mapeado (seção 6). ✅
