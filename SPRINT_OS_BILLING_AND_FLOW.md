@@ -214,7 +214,72 @@ Reproduzido e verificado via requisição HTTP real em processo local (sessão a
 
 Nenhum commit, push ou deploy foi realizado automaticamente nesta correção.
 
-## 19. Resultado final
+## 19. Correção do faturamento parcelado (R$ 120 em vez de R$ 1.500, "1/3" com 1 título, saldo R$ 0,00)
+
+Reportado em produção para OS-000002: `Valor da OS: R$ 1.500,00` / `Parcelas geradas: 1`, mas a linha da parcela mostrava `1/3 — R$ 120,00 — Recebido R$ 0,00 — Saldo R$ 0,00`. Investigado com `git log -p -S` sobre todo o histórico de `ServiceOrderService.php` — três causas raiz distintas, todas confirmadas por evidência, nenhuma por suposição.
+
+### Causa raiz 1 — R$ 120 em vez de R$ 1.500
+
+`ServiceOrderService::receivablePayload()` (introduzido em `3045eb4`, 2026-07-01; removido nesta sprint em `0ac8bd8`, 2026-08-14) mapeava:
+
+```php
+'original_amount' => round((float) ($data['base_amount'] ?? 0) + (float) ($data['surcharge_amount'] ?? 0), 2),
+```
+
+Sem o multiplicador de horas. A fórmula real do valor final da OS, em `ServiceOrderValidator::calculateFinalAmount()`, é:
+
+```php
+return round(($estimatedHours * $baseAmount) - $discountAmount + $surchargeAmount, 2);
+```
+
+Ou seja: o título legado usava `base_amount + surcharge_amount` (uma taxa/valor de hora, não um total), enquanto `final_amount` é `estimated_hours × base_amount − discount_amount + surcharge_amount`. Para `base_amount=120`, essa é exatamente a origem do "R$ 120,00" observado — um bug de fórmula no código antigo, não relacionado a esta sprint (que já o removeu por completo). O fluxo atual (`ServiceOrderBillingService`) nunca lê `base_amount`; usa exclusivamente `servicos_avulsos.final_amount`, recalculado no servidor a cada faturamento — já era assim desde a sprint anterior, e o teste `service_order_reparcel_module.php` agora prova isso explicitamente com um cenário onde `base_amount=120` e `final_amount=1500` coexistem propositalmente na mesma OS de teste.
+
+### Causa raiz 2 — "Parcelas geradas: 1" com a linha mostrando "1/3"
+
+`FinancialModuleController::payloadFromRequest()` sempre aceitou `installment_number`/`total_installments` de um `<input type="number">` livre no formulário genérico de edição de recebível (`resources/views/financial/receivables/form.php`), e `FinancialReceivableService::update()`/`assertReceivableData()` nunca validavam esses valores contra a quantidade real de títulos vinculados. Ou seja: bastava alguém digitar "3" no campo "Total de parcelas" de um único título para reproduzir exatamente o sintoma, sem nenhuma parcela adicional existir de fato. Corrigido: `FinancialReceivableService::update()` agora **descarta** qualquer `installment_number`/`total_installments` submetido sempre que o título tiver `service_order_id` preenchido — esses dois campos passam a ser alteráveis **somente** pelo fluxo de faturamento/reparcelamento da própria OS, nunca pela tela genérica de recebíveis. Escopo da trava: apenas títulos nascidos de OS (`service_order_id IS NOT NULL`); títulos manuais, de projeto ou de proposta continuam com o comportamento anterior, sem mudança de escopo.
+
+### Causa raiz 3 — saldo R$ 0,00 com recebido R$ 0,00
+
+Não é bug na fórmula. `FinancialReceivableRepository::create()` calcula `remaining_amount = max(0, original_amount + interest_amount + fine_amount - discount_amount)`. Um saldo zerado com `received_amount = 0` só é matematicamente possível quando `discount_amount >= original_amount` — plausível para o título legado de R$ 120 (criado antes desta sprint, quando o campo `discount_amount` era copiado 1:1 do valor da OS, que por sua vez pode ter tido um desconto igual ou maior). A confusão era só de exibição: a tabela Financeiro da OS não mostrava a coluna "Desconto", então um saldo zerado ao lado de "Recebido: R$ 0,00" parecia inconsistente sem visibilidade do desconto que o explica. Corrigido exibindo a coluna Desconto nas tabelas Financeiro (`form.php`, `show.php`, `billing.php`) e validado por teste que a fórmula é aplicada corretamente a cada nova parcela criada.
+
+### Nova funcionalidade: reparcelamento seguro
+
+Implementado `ServiceOrderBillingService::reparcel()` — permite substituir a cobrança de uma OS já faturada por uma nova composição (ex.: corrigir um título legado incorreto como o de OS-000002, ou simplesmente mudar de 1x para 3x). **Estratégia de segurança escolhida** (dentre as sugeridas no pedido): bloquear completamente quando qualquer título atualmente vinculado à OS (via `service_order_id` **ou** o vínculo legado `financial_receivable_id`) já tiver `received_amount > 0` — a mensagem de erro identifica qual título e orienta a fazer a baixa/estorno pelo financeiro antes de reparcelar. Motivo da escolha: reaplicar recebimentos parciais sobre um cronograma novo é uma operação financeira de alto risco (qual parcela nova "recebe" o pagamento antigo?) que não tem uma resposta única correta — bloquear e exigir decisão manual no financeiro é a opção mais segura, evita perda/duplicação de dinheiro, e reaproveita a baixa/estorno já existentes em vez de inventar lógica nova. Quando nenhum título tem recebimento, o reparcelamento cancela (soft delete, auditado) os títulos antigos e cria a nova composição — tudo na mesma transação (`GET`/`POST /ordens-servico/{id}/faturar` passou a oferecer o botão "Reparcelar cobrança" quando aplicável; nova rota `POST /ordens-servico/{id}/reparcelar`).
+
+Edição de vencimento/valor/descrição de uma parcela em aberto **já funcionava** via a tela genérica de recebíveis (`/financeiro/recebiveis/{id}/editar`, reaproveitada, com a nova trava de installment fields) — não foi necessária nenhuma tela nova para isso, só garantir que o link "Editar" esteja disponível a partir da OS (já estava em `form.php`; adicionado também em `show.php`).
+
+### Arquivos alterados
+
+- `app/Services/FinancialReceivableService.php` — trava de `installment_number`/`total_installments` para títulos de OS em `update()`.
+- `app/Services/ServiceOrderBillingService.php` — novo método `reparcel()`; `linkedTitles()`/`createInstallmentPlan()` extraídos e reaproveitados por `invoice()` e `reparcel()`.
+- `app/Controllers/ServiceOrderController.php` — novo método `reparcel()`; `billing()`/`invoice()` passam `canReparcel` para a view.
+- `config/routes.php` — nova rota `POST /ordens-servico/{id}/reparcelar`.
+- `resources/views/service_orders/billing.php` — oferece "Reparcelar cobrança" quando aplicável; tabela com coluna Desconto e labels de status.
+- `resources/views/service_orders/form.php`, `resources/views/service_orders/show.php` — resumo (valor total/parcelas/recebido/saldo), coluna Desconto e labels de status na seção Financeiro.
+- `tests/service_order_reparcel_module.php` (novo) — 26 verificações.
+- `tests/run.php` — registra o novo arquivo.
+
+### Alterações de banco
+
+Nenhuma. Reaproveita integralmente `financial_accounts_receivable`/`financial_receipts` e a coluna `service_order_id` já criada na sprint anterior.
+
+### Testes
+
+`php tests/run.php`: **300 OK, 0 FAIL** (26 novas verificações). Cenário obrigatório validado explicitamente: OS com `final_amount=1500`, `base_amount=120` (propositalmente diferente, para provar que nunca é usado), faturada em 3 parcelas mensais a partir de 10/09/2026 → 3 títulos físicos de R$ 500,00 cada (nunca R$ 120,00), `total_installments=3` em cada um dos 3 títulos reais (nunca "1 gerado/3 informado"), vencimentos 10/09, 10/10, 10/11/2026 persistidos corretamente. Reparcelamento sem recebimento testado (2x, títulos antigos removidos, novos vinculados). Reparcelamento bloqueado com recebimento testado. Relatório Financeiro confirmado enxergando exatamente os títulos pós-reparcelamento, nunca os antigos substituídos.
+
+### Validação manual
+
+Smoke-test via `Router::dispatch()` real (transação nunca comitada) reproduzindo o cenário de OS-000002 (`base_amount=120`, `final_amount=1500`, faturada em 3x): página de faturamento renderiza com "Reparcelar cobrança" oferecido, "R$ 500,00" aparece 3 vezes, "120,00" não aparece em lugar nenhum da página; tela de edição da OS mostra a coluna "Desconto" e o rótulo de negócio "Pendente" (nunca `pending` cru).
+
+### Pendência conhecida — título legado real em produção
+
+A OS-000002 real de produção tem um título legado (id=3) criado pelo código antigo, com dados incorretos (`original_amount=120`, `total_installments=3` sem as 3 linhas físicas). Ele não foi alterado por esta correção — nenhum dado real de produção foi manipulado sem autorização. Ver **PARTE 3** da resposta final desta sprint para o SQL opcional (não executado) de diagnóstico e remediação segura desse título específico, e para a alternativa recomendada (resolver pela própria tela da OS, usando o novo "Reparcelar cobrança", depois que a coluna `service_order_id` e o código desta correção estiverem em produção).
+
+### Confirmação
+
+Nenhum commit, push ou deploy foi realizado automaticamente nesta correção.
+
+## 20. Resultado final
 
 - OS pode ser faturada em pagamento único, parcelado (com arredondamento correto) ou personalizado (com validação de soma).
 - Parcelas são criadas em `financial_accounts_receivable` (fonte oficial), vinculadas à OS e ao cliente.
@@ -222,5 +287,6 @@ Nenhum commit, push ou deploy foi realizado automaticamente nesta correção.
 - Edição e baixa de parcela (total/parcial) continuam funcionando via as telas financeiras já existentes, agora com a salvaguarda de valor mínimo.
 - `/ordens-servico` exibe as OS reais, com indicadores e paginação corretos.
 - `/ordens-servico/{id}` (Visualizar) exibe uma tela de detalhes de verdade, sem redirecionar para a edição; `/ordens-servico/{id}/editar` não quebra mais o layout para OS faturáveis com aprovação gerada (seção 18).
-- Suíte de testes: 273 OK, 0 FAIL.
+- O valor final da OS (nunca `base_amount`) é a única fonte do faturamento; uma OS de R$ 1.500,00 em 3 parcelas gera exatamente 3 títulos físicos de R$ 500,00; `total_installments` sempre corresponde à quantidade real de títulos e não pode mais ser editado livremente para um título de OS; saldo/desconto ficaram visíveis na interface; reparcelamento seguro (bloqueado quando há recebimento) permite corrigir uma cobrança incorreta (seção 19).
+- Suíte de testes: 300 OK, 0 FAIL.
 - Nenhum commit, push ou deploy foi realizado automaticamente.

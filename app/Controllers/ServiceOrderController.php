@@ -202,11 +202,13 @@ final class ServiceOrderController
             return;
         }
 
+        $receivables = $this->receivablesForOrder($order);
         View::render('service_orders/billing', [
             'csrf' => Csrf::token(),
             'base' => $request->basePath(),
             'order' => $order,
-            'receivables' => $this->receivablesForOrder($order),
+            'receivables' => $receivables,
+            'canReparcel' => $this->canReparcel($receivables),
             'error' => trim((string) $request->input('error', '')),
         ]);
     }
@@ -222,11 +224,37 @@ final class ServiceOrderController
             Response::redirect($request->basePath() . '/ordens-servico/' . $id . '/editar?toast=success&msg=' . rawurlencode('Cobrança definida e Ordem de Serviço faturada com sucesso.'));
         } catch (\Throwable $e) {
             $order = (new ServiceOrderRepository())->find($id);
+            $receivables = $order !== null ? $this->receivablesForOrder($order) : [];
             View::render('service_orders/billing', [
                 'csrf' => Csrf::token(),
                 'base' => $request->basePath(),
                 'order' => $order ?? [],
-                'receivables' => $order !== null ? $this->receivablesForOrder($order) : [],
+                'receivables' => $receivables,
+                'canReparcel' => $this->canReparcel($receivables),
+                'formData' => $post,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function reparcel(Request $request, array $params): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        $actorId = (int) Session::get('user_id', 0);
+        $post = $request->allPost();
+
+        try {
+            (new ServiceOrderBillingService())->reparcel($id, $this->billingPayload($post), $actorId);
+            Response::redirect($request->basePath() . '/ordens-servico/' . $id . '/editar?toast=success&msg=' . rawurlencode('Cobrança reparcelada com sucesso.'));
+        } catch (\Throwable $e) {
+            $order = (new ServiceOrderRepository())->find($id);
+            $receivables = $order !== null ? $this->receivablesForOrder($order) : [];
+            View::render('service_orders/billing', [
+                'csrf' => Csrf::token(),
+                'base' => $request->basePath(),
+                'order' => $order ?? [],
+                'receivables' => $receivables,
+                'canReparcel' => $this->canReparcel($receivables),
                 'formData' => $post,
                 'error' => $e->getMessage(),
             ]);
@@ -378,6 +406,24 @@ final class ServiceOrderController
         }
 
         return [];
+    }
+
+    /**
+     * Reparcelar só é seguro quando existe cobrança para substituir e nenhum título
+     * atual já recebeu algo (mesma trava aplicada em ServiceOrderBillingService::reparcel()
+     * — duplicada aqui apenas para decidir a exibição do botão, nunca como única defesa).
+     */
+    private function canReparcel(array $receivables): bool
+    {
+        if ($receivables === []) {
+            return false;
+        }
+        foreach ($receivables as $item) {
+            if ((float) ($item['received_amount'] ?? 0) > 0.0001) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private function billingPayload(array $post): array

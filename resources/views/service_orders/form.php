@@ -272,6 +272,29 @@ $receivables = is_array($receivables ?? null) ? $receivables : [];
                 : 'Conclua a Ordem de Serviço para poder definir a cobrança.' ?>
           </div>
         <?php else: ?>
+          <?php
+            $statusLabels = ['pending' => 'Pendente', 'partially_paid' => 'Parcialmente pago', 'paid' => 'Pago', 'overdue' => 'Vencido', 'canceled' => 'Cancelado', 'renegotiated' => 'Renegociado'];
+            $receivedTotal = array_sum(array_map(static fn (array $r): float => (float) ($r['received_amount'] ?? 0), $receivables));
+            $openTotal = array_sum(array_map(static fn (array $r): float => (float) ($r['remaining_amount'] ?? 0), $receivables));
+          ?>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 text-sm">
+            <div>
+              <div class="text-xs font-semibold text-slate-600">Valor total da OS</div>
+              <div class="mt-1">R$ <?= number_format((float) ($serviceOrder['final_amount'] ?? 0), 2, ',', '.') ?></div>
+            </div>
+            <div>
+              <div class="text-xs font-semibold text-slate-600">Parcelas</div>
+              <div class="mt-1"><?= count($receivables) ?></div>
+            </div>
+            <div>
+              <div class="text-xs font-semibold text-slate-600">Total recebido</div>
+              <div class="mt-1">R$ <?= number_format($receivedTotal, 2, ',', '.') ?></div>
+            </div>
+            <div>
+              <div class="text-xs font-semibold text-slate-600">Saldo em aberto</div>
+              <div class="mt-1">R$ <?= number_format($openTotal, 2, ',', '.') ?></div>
+            </div>
+          </div>
           <div class="overflow-x-auto mt-3">
             <table class="w-full text-sm">
               <thead class="text-slate-700">
@@ -279,6 +302,7 @@ $receivables = is_array($receivables ?? null) ? $receivables : [];
                   <th class="text-left py-2 px-2">Parcela</th>
                   <th class="text-left py-2 px-2">Vencimento</th>
                   <th class="text-right py-2 px-2">Valor</th>
+                  <th class="text-right py-2 px-2">Desconto</th>
                   <th class="text-right py-2 px-2">Recebido</th>
                   <th class="text-right py-2 px-2">Saldo</th>
                   <th class="text-left py-2 px-2">Status</th>
@@ -292,9 +316,10 @@ $receivables = is_array($receivables ?? null) ? $receivables : [];
                     <td class="py-2 px-2"><?= (int) ($item['installment_number'] ?? 1) ?>/<?= (int) ($item['total_installments'] ?? 1) ?></td>
                     <td class="py-2 px-2"><?= View::e((string) ($item['due_date'] ?? '')) ?></td>
                     <td class="py-2 px-2 text-right">R$ <?= number_format((float) ($item['original_amount'] ?? 0), 2, ',', '.') ?></td>
+                    <td class="py-2 px-2 text-right">R$ <?= number_format((float) ($item['discount_amount'] ?? 0), 2, ',', '.') ?></td>
                     <td class="py-2 px-2 text-right">R$ <?= number_format((float) ($item['received_amount'] ?? 0), 2, ',', '.') ?></td>
                     <td class="py-2 px-2 text-right">R$ <?= number_format((float) ($item['remaining_amount'] ?? 0), 2, ',', '.') ?></td>
-                    <td class="py-2 px-2"><?= View::e((string) ($item['status'] ?? '')) ?></td>
+                    <td class="py-2 px-2"><?= View::e($statusLabels[(string) ($item['status'] ?? '')] ?? (string) ($item['status'] ?? '')) ?></td>
                     <td class="py-2 px-2 text-right">
                       <a class="tr-icon-btn" title="Visualizar" href="<?= View::e($base . '/financeiro/recebiveis/' . $receivableId) ?>"><?= UI::icon('eye') ?><span class="sr-only">Visualizar</span></a>
                       <a class="tr-icon-btn" title="Editar" href="<?= View::e($base . '/financeiro/recebiveis/' . $receivableId . '/editar') ?>"><?= UI::icon('edit') ?><span class="sr-only">Editar</span></a>

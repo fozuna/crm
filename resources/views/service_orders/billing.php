@@ -14,7 +14,13 @@ $clientLabel = trim((string) ($order['client_company'] ?? '')) !== ''
     : (trim((string) ($order['client_name'] ?? '')) !== '' ? (string) $order['client_name'] : 'Cliente não vinculado');
 $finalAmount = (float) ($order['final_amount'] ?? 0);
 $alreadyBilled = $receivables !== [];
+$canReparcel = ($canReparcel ?? false) === true;
 $selectedMode = (string) ($formData['mode'] ?? '');
+$showForm = !$alreadyBilled || $canReparcel;
+$formAction = $alreadyBilled
+    ? ($base . '/ordens-servico/' . $id . '/reparcelar')
+    : ($base . '/ordens-servico/' . $id . '/faturar');
+$statusLabels = ['pending' => 'Pendente', 'partially_paid' => 'Parcialmente pago', 'paid' => 'Pago', 'overdue' => 'Vencido', 'canceled' => 'Cancelado', 'renegotiated' => 'Renegociado'];
 ?>
 
 <div class="flex items-start justify-between gap-4">
@@ -56,11 +62,20 @@ $selectedMode = (string) ($formData['mode'] ?? '');
 <?php if ($alreadyBilled): ?>
   <div class="mt-6 tr-card p-6 border border-amber-200 bg-amber-50">
     <div class="font-semibold text-amber-800">Esta Ordem de Serviço já possui cobrança gerada.</div>
-    <div class="text-amber-700 text-sm mt-1">Os títulos abaixo já foram lançados no financeiro para esta OS.</div>
+    <div class="text-amber-700 text-sm mt-1">
+      <?= $canReparcel
+          ? 'Nenhum título abaixo possui recebimento — é possível reparcelar a cobrança com segurança, se necessário.'
+          : 'Já existe recebimento registrado em pelo menos um título — não é possível reparcelar automaticamente. Ajuste manualmente pelo financeiro, se necessário.' ?>
+    </div>
     <?php $firstReceivableId = (int) ($receivables[0]['id'] ?? 0); ?>
-    <?php if ($firstReceivableId > 0): ?>
-      <a class="tr-btn tr-btn--accent mt-4 inline-flex" href="<?= View::e($base . '/financeiro/recebiveis/' . $firstReceivableId) ?>">Visualizar financeiro</a>
-    <?php endif; ?>
+    <div class="mt-4 flex flex-wrap gap-2">
+      <?php if ($firstReceivableId > 0): ?>
+        <a class="tr-btn tr-btn--accent" href="<?= View::e($base . '/financeiro/recebiveis/' . $firstReceivableId) ?>">Visualizar financeiro</a>
+      <?php endif; ?>
+      <?php if ($canReparcel): ?>
+        <a class="tr-btn" href="#reparcelForm">Reparcelar cobrança</a>
+      <?php endif; ?>
+    </div>
   </div>
 
   <div class="mt-6 tr-card overflow-hidden">
@@ -72,6 +87,7 @@ $selectedMode = (string) ($formData['mode'] ?? '');
             <th class="text-left py-3 px-4">Parcela</th>
             <th class="text-left py-3 px-4">Vencimento</th>
             <th class="text-right py-3 px-4">Valor</th>
+            <th class="text-right py-3 px-4">Desconto</th>
             <th class="text-right py-3 px-4">Recebido</th>
             <th class="text-right py-3 px-4">Saldo</th>
             <th class="text-left py-3 px-4">Status</th>
@@ -83,17 +99,26 @@ $selectedMode = (string) ($formData['mode'] ?? '');
               <td class="px-4 py-3"><?= (int) ($item['installment_number'] ?? 1) ?>/<?= (int) ($item['total_installments'] ?? 1) ?></td>
               <td class="px-4 py-3"><?= View::e((string) ($item['due_date'] ?? '')) ?></td>
               <td class="px-4 py-3 text-right">R$ <?= number_format((float) ($item['original_amount'] ?? 0), 2, ',', '.') ?></td>
+              <td class="px-4 py-3 text-right">R$ <?= number_format((float) ($item['discount_amount'] ?? 0), 2, ',', '.') ?></td>
               <td class="px-4 py-3 text-right">R$ <?= number_format((float) ($item['received_amount'] ?? 0), 2, ',', '.') ?></td>
               <td class="px-4 py-3 text-right">R$ <?= number_format((float) ($item['remaining_amount'] ?? 0), 2, ',', '.') ?></td>
-              <td class="px-4 py-3"><?= View::e((string) ($item['status'] ?? '')) ?></td>
+              <td class="px-4 py-3"><?= View::e($statusLabels[(string) ($item['status'] ?? '')] ?? (string) ($item['status'] ?? '')) ?></td>
             </tr>
           <?php endforeach; ?>
         </tbody>
       </table>
     </div>
   </div>
-<?php else: ?>
-  <form method="post" action="<?= View::e($base . '/ordens-servico/' . $id . '/faturar') ?>" class="mt-6 space-y-6" id="billingForm">
+<?php endif; ?>
+
+<?php if ($showForm): ?>
+  <?php if ($alreadyBilled): ?>
+    <div id="reparcelForm" class="mt-6 tr-card p-4 border border-slate-200 bg-slate-50">
+      <div class="font-semibold">Reparcelar cobrança</div>
+      <div class="text-sm text-slate-600 mt-1">Os título(s) acima serão substituídos pela nova composição definida abaixo. Nenhum recebimento existente será perdido — a operação só é permitida porque nenhum título atual possui valor recebido.</div>
+    </div>
+  <?php endif; ?>
+  <form method="post" action="<?= View::e($formAction) ?>" class="mt-6 space-y-6" id="billingForm">
     <input type="hidden" name="_csrf" value="<?= View::e($csrf) ?>">
 
     <div class="tr-card p-6">
@@ -202,7 +227,7 @@ $selectedMode = (string) ($formData['mode'] ?? '');
     </div>
 
     <div class="flex flex-wrap gap-2">
-      <button class="tr-btn tr-btn--accent" type="submit">Confirmar faturamento</button>
+      <button class="tr-btn tr-btn--accent" type="submit"><?= $alreadyBilled ? 'Confirmar reparcelamento' : 'Confirmar faturamento' ?></button>
       <a class="tr-btn" href="<?= View::e($base . '/ordens-servico/' . $id . '/editar') ?>">Cancelar</a>
     </div>
   </form>

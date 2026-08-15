@@ -659,6 +659,19 @@ Não existe atualmente `.claude/settings.local.json` neste repositório. Trata-s
 
 Nenhuma credencial, senha, token ou segredo foi lido ou registrado nesta auditoria. Nenhuma linha de `config/*.php` foi acessada.
 
+## P17 — Faturamento de OS usava base_amount em vez de final_amount; total_installments editável sem relação com os títulos reais (CORRIGIDO — 2026-08-14)
+
+**Módulo:** Ordens de Serviço / Financeiro corporativo.
+**Severidade:** Alta (dado financeiro exibido incorretamente ao usuário; risco de faturamento por valor errado).
+**Status:** Corrigido e validado (300 testes automatizados, 0 FAIL). Ver `SPRINT_OS_BILLING_AND_FLOW.md`, seção 19, para o diagnóstico completo com evidências de `git log -p -S`.
+
+Uma OS de R$ 1.500,00 exibia, no bloco Financeiro, um título de R$ 120,00 marcado "1/3" mas com "Parcelas geradas: 1" e saldo R$ 0,00 mesmo sem recebimento. Três causas distintas, todas confirmadas por código/histórico:
+1. O antigo `ServiceOrderService::receivablePayload()` (removido em `0ac8bd8`, 2026-08-14) usava `base_amount + surcharge_amount` (sem multiplicar por `estimated_hours`) como `original_amount` do título — nunca `final_amount`, que é a fórmula real do valor da OS. Título legado, gerado antes desta correção existir; o fluxo atual (`ServiceOrderBillingService`) já usa exclusivamente `final_amount`.
+2. `FinancialReceivableService::update()` aceitava `installment_number`/`total_installments` de qualquer título sem validar contra a quantidade real de linhas vinculadas — corrigido: esses campos são ignorados em `update()` para qualquer título com `service_order_id` preenchido (só alteráveis pelo fluxo de faturamento/reparcelamento da própria OS).
+3. Saldo R$ 0,00 com recebido R$ 0,00 era matematicamente consistente (implica `discount_amount >= original_amount`), mas invisível na UI por falta da coluna "Desconto" nas tabelas Financeiro da OS — corrigido exibindo-a.
+
+Nova funcionalidade: `ServiceOrderBillingService::reparcel()`, que permite corrigir/substituir a cobrança de uma OS já faturada, bloqueado com segurança sempre que qualquer título vinculado já tiver recebimento.
+
 ## Confirmação de conclusão
 
 - Fluxo financeiro mapeado (seção 6). ✅

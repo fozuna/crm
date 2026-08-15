@@ -81,6 +81,16 @@ final class FinancialReceivableService
         if (in_array((string) ($existing['status'] ?? ''), ['paid', 'canceled'], true)) {
             throw new \RuntimeException('Título já quitado/cancelado não pode ser alterado.');
         }
+        if ((int) ($existing['service_order_id'] ?? 0) > 0) {
+            // Parcelas nascidas do faturamento de uma Ordem de Serviço têm numeração/
+            // quantidade controladas exclusivamente pelo fluxo de faturamento/
+            // reparcelamento da OS (ServiceOrderBillingService) — nunca editáveis pela
+            // tela genérica de recebíveis. Sem essa trava, "Total de parcelas" podia ser
+            // digitado livremente aqui sem nenhuma relação com os títulos realmente
+            // existentes (causa confirmada de uma OS de R$ 1.500 exibir "1/3" com um
+            // único título de R$ 120 vinculado).
+            unset($payload['installment_number'], $payload['total_installments']);
+        }
         $data = FinancialReceivableData::fromArray(array_merge($existing, $payload, [
             'company_id' => $companyId,
             'updated_by' => $actorId,

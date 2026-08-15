@@ -74,6 +74,7 @@ return static function (Router $router, array $mw): void {
     $router->post('/ordens-servico/{id}', [new ServiceOrderController(), 'update'], [$auth, $pm, $csrf]);
     $router->get('/ordens-servico/{id}/faturar', [new ServiceOrderController(), 'billing'], [$auth, $auditor]);
     $router->post('/ordens-servico/{id}/faturar', [new ServiceOrderController(), 'invoice'], [$auth, $pm, $csrf]);
+    $router->post('/ordens-servico/{id}/reparcelar', [new ServiceOrderController(), 'reparcel'], [$auth, $pm, $csrf]);
     $router->post('/ordens-servico/{id}/status', [new ServiceOrderController(), 'updateStatus'], [$auth, $pm, $csrf]);
     $router->post('/ordens-servico/{id}/cancelar', [new ServiceOrderController(), 'cancel'], [$auth, $pm, $csrf]);
     $router->post('/ordens-servico/{id}/excluir', [new ServiceOrderController(), 'destroy'], [$auth, $pm, $csrf]);
